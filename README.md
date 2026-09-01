@@ -1,4 +1,4 @@
-# KineWall — KDE Plasma 6
+# KineWall — Video Wallpaper for Linux
 
 [Español](README.es.md)
 

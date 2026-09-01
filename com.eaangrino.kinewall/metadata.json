@@ -3,16 +3,22 @@
   "KPlugin": {
     "Authors": [
       {
+        "Email": "eaangrino@gmail.com",
         "Name": "eaangrino"
       }
     ],
-    "Description": "KineWall plays local videos as a desktop background in KDE Plasma—without audio, on a loop, and with an optional pause when a window is maximized.",
-    "Icon": "video-x-generic",
     "Id": "com.eaangrino.kinewall",
-    "License": "MIT",
     "Name": "KineWall",
+    "Icon": "video-x-generic",
+    "Category": "",
+    "Description": "KineWall plays local videos as a desktop background in KDE Plasma—without audio, on a loop, and with an optional pause when a window is maximized.",
+    "Website": "https://github.com/eaangrino/kinewall-video-wallpaper",
+    "BugReportUrl": "https://github.com/eaangrino/kinewall-video-wallpaper/issues",
+    "License": "MIT",
     "Version": "0.1.0"
   },
+  "X-Plasma-ContainmentCategories": ["desktop"],
+  "Keywords": ["wallpaper", "video", "desktop"],
   "X-KDE-ParentApp": "org.kde.plasmashell",
   "X-Plasma-API-Minimum-Version": "6.0"
 }
