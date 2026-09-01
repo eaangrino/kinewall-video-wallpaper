@@ -11,20 +11,20 @@ WallpaperItem {
     // to the same monitor where this KineWall instance is running.
     readonly property rect wallpaperScreenGeometry: {
         if (root.parent && root.parent.screenGeometry !== undefined) {
-            return root.parent.screenGeometry
+            return root.parent.screenGeometry;
         }
 
-        return Qt.rect(0, 0, 0, 0)
+        return Qt.rect(0, 0, 0, 0);
     }
 
     readonly property bool pauseOnMaximized: {
-        const value = root.configuration.PauseOnMaximized
+        const value = root.configuration.PauseOnMaximized;
 
         if (value === undefined || value === null) {
-            return true
+            return true;
         }
 
-        return Boolean(value)
+        return Boolean(value);
     }
 
     // The model is already filtered to contain only windows:
@@ -34,56 +34,52 @@ WallpaperItem {
     // - not minimized
     // - maximized
     readonly property bool hasMaximizedWindow: maximizedTasks.count > 0
-    readonly property bool shouldPauseForMaximizedWindow:
-        root.pauseOnMaximized && root.hasMaximizedWindow
+    readonly property bool shouldPauseForMaximizedWindow: root.pauseOnMaximized && root.hasMaximizedWindow
 
     readonly property url videoUrl: {
-        const configured = root.configuration.Video
+        const configured = root.configuration.Video;
 
         if (configured === undefined || configured === null) {
-            return ""
+            return "";
         }
 
-        const value = configured.toString().trim()
+        const value = configured.toString().trim();
 
         if (value.length === 0) {
-            return ""
+            return "";
         }
 
         if (value.startsWith("file:")) {
-            return value
+            return value;
         }
 
-        return "file://" + value
+        return "file://" + value;
     }
 
     readonly property int configuredFillMode: {
-        const value = Number(root.configuration.FillMode)
-        return Number.isFinite(value) ? value : 1
+        const value = Number(root.configuration.FillMode);
+        return Number.isFinite(value) ? value : 1;
     }
 
     function syncPlayback() {
         if (player.source.toString().length === 0) {
             if (player.playbackState !== MediaPlayer.StoppedState) {
-                player.stop()
+                player.stop();
             }
-            return
+            return;
         }
 
         if (root.shouldPauseForMaximizedWindow) {
             // pause() preserves the current video position.
             if (player.playbackState === MediaPlayer.PlayingState) {
-                player.pause()
+                player.pause();
             }
-            return
+            return;
         }
 
         // Only play when the media is ready.
-        if ((player.mediaStatus === MediaPlayer.LoadedMedia
-             || player.mediaStatus === MediaPlayer.BufferedMedia
-             || player.mediaStatus === MediaPlayer.BufferingMedia)
-                && player.playbackState !== MediaPlayer.PlayingState) {
-            player.play()
+        if ((player.mediaStatus === MediaPlayer.LoadedMedia || player.mediaStatus === MediaPlayer.BufferedMedia || player.mediaStatus === MediaPlayer.BufferingMedia) && player.playbackState !== MediaPlayer.PlayingState) {
+            player.play();
         }
     }
 
@@ -125,17 +121,17 @@ WallpaperItem {
     }
 
     VideoOutput {
-        id: videoOutput
+        id: wallpaperVideoOutput
         anchors.fill: parent
 
         fillMode: {
             switch (root.configuredFillMode) {
             case 0:
-                return VideoOutput.PreserveAspectFit
+                return VideoOutput.PreserveAspectFit;
             case 2:
-                return VideoOutput.Stretch
+                return VideoOutput.Stretch;
             default:
-                return VideoOutput.PreserveAspectCrop
+                return VideoOutput.PreserveAspectCrop;
             }
         }
     }
@@ -144,7 +140,7 @@ WallpaperItem {
         id: player
 
         source: root.videoUrl
-        videoOutput: videoOutput
+        videoOutput: wallpaperVideoOutput
 
         // Audio is disabled, not merely set to zero volume.
         activeAudioTrack: -1
@@ -154,7 +150,7 @@ WallpaperItem {
 
         onSourceChanged: {
             if (source.toString().length === 0) {
-                stop()
+                stop();
             }
         }
 

@@ -1,4 +1,4 @@
-import QtQuick
+import QtQuick // qmllint disable import
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
@@ -46,11 +46,7 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: "Positioning:"
         Layout.fillWidth: true
 
-        model: [
-            "Fit entire video (no cropping)",
-            "Fill screen (crop edges)",
-            "Stretch"
-        ]
+        model: ["Fit entire video (no cropping)", "Fill screen (crop edges)", "Stretch"]
 
         currentIndex: root.cfg_FillMode
         onActivated: root.cfg_FillMode = currentIndex
@@ -82,10 +78,7 @@ Kirigami.FormLayout {
         id: fileDialog
         title: "Select video"
         fileMode: FileDialog.OpenFile
-        nameFilters: [
-            "Videos (*.mp4 *.mkv *.webm *.mov *.avi *.m4v)",
-            "All files (*)"
-        ]
+        nameFilters: ["Videos (*.mp4 *.mkv *.webm *.mov *.avi *.m4v)", "All files (*)"]
 
         onAccepted: root.cfg_Video = selectedFile.toString()
     }
