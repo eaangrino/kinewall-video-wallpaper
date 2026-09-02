@@ -4,7 +4,9 @@
 
 **KineWall** es un plugin QML de fondo de pantalla para KDE Plasma 6 que reproduce un video local en bucle continuo y deshabilita explícitamente la pista de audio (`activeAudioTrack: -1`).
 
-También puede pausar automáticamente la reproducción cuando una ventana maximizada cubre el escritorio, evitando reproducir el video innecesariamente cuando el fondo no es visible.
+KineWall puede utilizarse tanto como **fondo de Plasma Desktop** como en la **pantalla de bloqueo de KDE Plasma (KScreenLocker)**.
+
+También puede pausar automáticamente la reproducción cuando una ventana maximizada cubre el escritorio, evitando reproducir el video innecesariamente cuando el fondo no es visible. Esta pausa de rendimiento solo se aplica al escritorio; KScreenLocker continúa reproduciendo el video configurado mientras la sesión está bloqueada.
 
 ## Compatibilidad objetivo
 
@@ -12,6 +14,8 @@ También puede pausar automáticamente la reproducción cuando una ventana maxim
 - KDE Plasma 6.3.x
 - Qt 6.8.x
 - Qt Multimedia QML
+- Fondo de Plasma Desktop
+- Fondo de la pantalla de bloqueo de Plasma (KScreenLocker)
 
 ## Instalar con `install.sh` — recomendado
 
@@ -77,6 +81,8 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 
 ## Uso
 
+### Escritorio
+
 1. Haz clic derecho sobre el escritorio.
 2. Selecciona **Configurar escritorio y fondo de pantalla**.
 3. En **Tipo de fondo de pantalla**, selecciona **KineWall**.
@@ -84,6 +90,20 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 5. Escoge el modo de posicionamiento.
 6. Activa o desactiva, si quieres, **Pausar cuando haya una ventana maximizada**.
 7. Aplica los cambios.
+
+### Pantalla de bloqueo (KScreenLocker)
+
+1. Abre **Preferencias del sistema**.
+2. Ve a **Seguridad y privacidad → Bloqueo de pantalla**.
+3. Abre **Configurar apariencia…**.
+4. En **Tipo de fondo de pantalla**, selecciona **KineWall**.
+5. Pulsa **Examinar…** y selecciona un archivo de video.
+6. Escoge el modo de posicionamiento y aplica los cambios.
+7. Pulsa **Meta + L** para probar la pantalla de bloqueo.
+
+El escritorio y la pantalla de bloqueo mantienen su propia configuración de fondo, por lo que pueden utilizar el mismo video o videos diferentes.
+
+La opción **Pausar cuando haya una ventana maximizada** solo afecta al escritorio. KScreenLocker continúa reproduciendo el video aunque exista una ventana maximizada detrás de la pantalla de bloqueo.
 
 ## Recargar Plasma si es necesario
 
@@ -107,7 +127,7 @@ Por tanto, la pista de audio queda deshabilitada en lugar de simplemente reprodu
 
 ## Pausa cuando una ventana está maximizada
 
-KineWall puede pausar opcionalmente la reproducción cuando existe una ventana maximizada y no minimizada en el mismo monitor.
+KineWall puede pausar opcionalmente la reproducción cuando existe una ventana maximizada y no minimizada en el mismo monitor mientras se utiliza como fondo del escritorio.
 
 La detección utiliza `org.kde.taskmanager` de Plasma y filtra por:
 
@@ -120,6 +140,8 @@ La detección utiliza `org.kde.taskmanager` de Plasma y filtra por:
 Cuando se detecta una ventana de ese tipo, KineWall llama a `MediaPlayer.pause()`, conservando la posición de reproducción.
 
 Cuando deja de existir una ventana maximizada que coincida con esos criterios, KineWall llama a `MediaPlayer.play()` y el video continúa desde la misma posición.
+
+Este comportamiento está deshabilitado dentro de KScreenLocker para que el video de la pantalla de bloqueo continúe reproduciéndose mientras la sesión está bloqueada.
 
 La opción está activada por defecto y puede desactivarse desde la configuración de KineWall.
 
