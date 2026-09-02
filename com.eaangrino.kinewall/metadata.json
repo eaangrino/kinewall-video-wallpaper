@@ -15,7 +15,7 @@
     "Website": "https://github.com/eaangrino/kinewall-video-wallpaper",
     "BugReportUrl": "https://github.com/eaangrino/kinewall-video-wallpaper/issues",
     "License": "MIT",
-    "Version": "0.1.0"
+    "Version": "0.1.1"
   },
   "X-Plasma-ContainmentCategories": ["desktop"],
   "Keywords": ["wallpaper", "video", "desktop"],
