@@ -33,7 +33,9 @@ WallpaperItem {
     // - on the same monitor
     // - not minimized
     // - maximized
-    readonly property bool hasMaximizedWindow: maximizedTasks.count > 0
+    readonly property bool isScreenLocker: Qt.application.name === "kscreenlocker_greet"
+
+    readonly property bool hasMaximizedWindow: !root.isScreenLocker && maximizedTasks.count > 0
     readonly property bool shouldPauseForMaximizedWindow: root.pauseOnMaximized && root.hasMaximizedWindow
 
     readonly property url videoUrl: {
