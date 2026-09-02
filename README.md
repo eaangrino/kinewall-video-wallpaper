@@ -4,7 +4,9 @@
 
 **KineWall** is a QML wallpaper plugin for KDE Plasma 6 that plays a local video in a continuous loop while explicitly disabling the audio track (`activeAudioTrack: -1`).
 
-It can also pause video playback automatically while a maximized window covers the desktop, avoiding unnecessary playback when the wallpaper is not visible.
+KineWall can be used both as the **Plasma Desktop wallpaper** and as the **KDE Plasma lock screen (KScreenLocker) wallpaper**.
+
+It can also pause video playback automatically while a maximized window covers the desktop, avoiding unnecessary playback when the wallpaper is not visible. This performance pause applies only to the desktop; KScreenLocker continues playing the configured video while the session is locked.
 
 ## Target compatibility
 
@@ -12,6 +14,8 @@ It can also pause video playback automatically while a maximized window covers t
 - KDE Plasma 6.3.x
 - Qt 6.8.x
 - Qt Multimedia QML
+- Plasma Desktop wallpaper
+- Plasma lock screen (KScreenLocker) wallpaper
 
 ## Install with `install.sh` — recommended
 
@@ -77,6 +81,8 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 
 ## Usage
 
+### Desktop
+
 1. Right-click the desktop.
 2. Select **Configure Desktop and Wallpaper**.
 3. Under **Wallpaper Type**, select **KineWall**.
@@ -84,6 +90,20 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 5. Choose the desired positioning mode.
 6. Optionally enable or disable **Pause when a window is maximized**.
 7. Apply the changes.
+
+### Lock screen (KScreenLocker)
+
+1. Open **System Settings**.
+2. Go to **Security & Privacy → Screen Locking**.
+3. Open **Configure Appearance…**.
+4. Under **Wallpaper Type**, select **KineWall**.
+5. Click **Browse…** and select a video file.
+6. Choose the desired positioning mode and apply the changes.
+7. Press **Meta + L** to test the lock screen.
+
+The desktop and lock screen keep their own wallpaper configuration, so they can use the same video or different videos.
+
+The **Pause when a window is maximized** option only affects the desktop. KScreenLocker keeps playing the video even if a maximized window exists behind the lock screen.
 
 ## Reload Plasma if necessary
 
@@ -107,7 +127,7 @@ The audio track is therefore disabled rather than merely played at zero volume.
 
 ## Pause when a window is maximized
 
-KineWall can optionally pause playback when a maximized, non-minimized window is present on the same monitor.
+KineWall can optionally pause playback when a maximized, non-minimized window is present on the same monitor while running as the desktop wallpaper.
 
 Window detection uses Plasma's `org.kde.taskmanager` and filters by:
 
@@ -120,6 +140,8 @@ Window detection uses Plasma's `org.kde.taskmanager` and filters by:
 When such a window is detected, KineWall calls `MediaPlayer.pause()`, preserving the playback position.
 
 When no matching maximized window remains, KineWall calls `MediaPlayer.play()` and playback resumes from the same position.
+
+This behavior is disabled inside KScreenLocker so the lock screen video continues playing while the session is locked.
 
 The option is enabled by default and can be disabled from the KineWall configuration panel.
 
