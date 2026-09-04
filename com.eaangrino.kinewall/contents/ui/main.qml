@@ -1,3 +1,5 @@
+// qmllint disable import unresolved-type missing-property
+
 import QtQuick
 import QtMultimedia
 import org.kde.plasma.plasmoid
@@ -38,6 +40,15 @@ WallpaperItem {
     readonly property bool hasMaximizedWindow: !root.isScreenLocker && maximizedTasks.count > 0
     readonly property bool shouldPauseForMaximizedWindow: root.pauseOnMaximized && root.hasMaximizedWindow
 
+    // KScreenLocker-only display power detection. A probe requests a tiny visual
+    // update once per second. If two consecutive probes are not presented by the
+    // containing QQuickWindow, KWin has stopped presenting this lock-screen surface.
+    property bool screenPoweredOff: false
+    property bool screenProbePending: false
+    property int missedScreenProbeCount: 0
+    property bool screenRenderProbeToggle: false
+    readonly property bool shouldPauseForScreenPower: root.isScreenLocker && root.screenPoweredOff
+
     readonly property url videoUrl: {
         const configured = root.configuration.Video;
 
@@ -71,7 +82,7 @@ WallpaperItem {
             return;
         }
 
-        if (root.shouldPauseForMaximizedWindow) {
+        if (root.shouldPauseForMaximizedWindow || root.shouldPauseForScreenPower) {
             // pause() preserves the current video position.
             if (player.playbackState === MediaPlayer.PlayingState) {
                 player.pause();
@@ -86,6 +97,7 @@ WallpaperItem {
     }
 
     onShouldPauseForMaximizedWindowChanged: syncPlayback()
+    onShouldPauseForScreenPowerChanged: syncPlayback()
 
     TaskManager.VirtualDesktopInfo {
         id: virtualDesktopInfo
@@ -93,6 +105,55 @@ WallpaperItem {
 
     TaskManager.ActivityInfo {
         id: activityInfo
+    }
+
+    Connections {
+        target: root.Window.window
+        enabled: root.isScreenLocker && target !== null
+
+        function onFrameSwapped() {
+            if (!root.screenProbePending) {
+                return;
+            }
+
+            root.screenProbePending = false;
+            root.missedScreenProbeCount = 0;
+
+            if (root.screenPoweredOff) {
+                root.screenPoweredOff = false;
+            }
+        }
+    }
+
+    Timer {
+        id: screenPowerProbeTimer
+
+        interval: 1000
+        repeat: true
+        running: root.isScreenLocker && root.Window.window !== null
+
+        onTriggered: {
+            if (root.screenProbePending) {
+                root.missedScreenProbeCount += 1;
+
+                if (root.missedScreenProbeCount >= 2 && !root.screenPoweredOff) {
+                    root.screenPoweredOff = true;
+                }
+            } else {
+                root.missedScreenProbeCount = 0;
+            }
+
+            root.screenProbePending = true;
+            root.screenRenderProbeToggle = !root.screenRenderProbeToggle;
+        }
+
+        onRunningChanged: {
+            if (!running) {
+                root.screenProbePending = false;
+                root.missedScreenProbeCount = 0;
+                root.screenPoweredOff = false;
+            }
+        }
     }
 
     TaskManager.TasksModel {
@@ -115,6 +176,15 @@ WallpaperItem {
         filterMinimized: true
         filterNotMaximized: true
         filterHidden: true
+    }
+
+    // Toggling this occluded pixel dirties the Qt Quick scene without changing
+    // the visible wallpaper, giving the lock screen a lightweight presentation probe.
+    Rectangle {
+        width: 1
+        height: 1
+        color: "black"
+        visible: root.isScreenLocker && root.screenRenderProbeToggle
     }
 
     Rectangle {

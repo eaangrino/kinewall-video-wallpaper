@@ -6,7 +6,9 @@
 
 KineWall puede utilizarse tanto como **fondo de Plasma Desktop** como en la **pantalla de bloqueo de KDE Plasma (KScreenLocker)**.
 
-También puede pausar automáticamente la reproducción cuando una ventana maximizada cubre el escritorio, evitando reproducir el video innecesariamente cuando el fondo no es visible. Esta pausa de rendimiento solo se aplica al escritorio; KScreenLocker continúa reproduciendo el video configurado mientras la sesión está bloqueada.
+También puede pausar automáticamente la reproducción cuando una ventana maximizada cubre el escritorio, evitando reproducir el video innecesariamente cuando el fondo no es visible. Esta pausa de rendimiento solo se aplica al escritorio.
+
+Cuando KineWall se utiliza en KScreenLocker, la reproducción también se pausa mientras la pantalla está apagada y continúa desde la misma posición cuando la pantalla vuelve a encenderse. Esta pausa por estado de la pantalla solo se aplica a KScreenLocker y no cambia el comportamiento del fondo del escritorio.
 
 ## Compatibilidad objetivo
 
@@ -103,7 +105,7 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 
 El escritorio y la pantalla de bloqueo mantienen su propia configuración de fondo, por lo que pueden utilizar el mismo video o videos diferentes.
 
-La opción **Pausar cuando haya una ventana maximizada** solo afecta al escritorio. KScreenLocker continúa reproduciendo el video aunque exista una ventana maximizada detrás de la pantalla de bloqueo.
+La opción **Pausar cuando haya una ventana maximizada** solo afecta al escritorio. KScreenLocker ignora las ventanas maximizadas, pero pausa el video mientras la pantalla está apagada y continúa desde la misma posición cuando vuelve a encenderse.
 
 ## Recargar Plasma si es necesario
 
@@ -141,9 +143,17 @@ Cuando se detecta una ventana de ese tipo, KineWall llama a `MediaPlayer.pause()
 
 Cuando deja de existir una ventana maximizada que coincida con esos criterios, KineWall llama a `MediaPlayer.play()` y el video continúa desde la misma posición.
 
-Este comportamiento está deshabilitado dentro de KScreenLocker para que el video de la pantalla de bloqueo continúe reproduciéndose mientras la sesión está bloqueada.
+Este comportamiento está deshabilitado dentro de KScreenLocker para que las ventanas maximizadas no pausen el video de la pantalla de bloqueo.
 
 La opción está activada por defecto y puede desactivarse desde la configuración de KineWall.
+
+## Pausa mientras la pantalla de bloqueo está apagada
+
+Cuando KineWall se ejecuta dentro de KScreenLocker, pausa `MediaPlayer` si la ventana de Qt Quick deja de presentar frames después de que la pantalla se apaga. `MediaPlayer.pause()` conserva la posición actual.
+
+KineWall mantiene una sonda ligera de presentación mientras está pausado. Cuando la pantalla vuelve a encenderse y la ventana de bloqueo vuelve a presentar un frame, la reproducción continúa desde la posición conservada.
+
+Este comportamiento está limitado a KScreenLocker. El fondo del escritorio no se pausa únicamente porque cambie el estado de la sonda de energía de la pantalla.
 
 ## Licencia
 
