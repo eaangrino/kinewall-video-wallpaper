@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-**KineWall** es un plugin QML de fondo de pantalla para KDE Plasma 6 que reproduce un video local en bucle continuo y deshabilita explícitamente la pista de audio (`activeAudioTrack: -1`).
+**KineWall** es un plugin QML de fondo de pantalla para KDE Plasma 6 que reproduce un video local en bucle continuo. El audio está deshabilitado por defecto y puede habilitarse desde el panel de configuración de KineWall.
 
 KineWall puede utilizarse tanto como **fondo de Plasma Desktop** como en la **pantalla de bloqueo de KDE Plasma (KScreenLocker)**.
 
@@ -90,8 +90,9 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 3. En **Tipo de fondo de pantalla**, selecciona **KineWall**.
 4. Pulsa **Examinar…** y selecciona un archivo de video.
 5. Escoge el modo de posicionamiento.
-6. Activa o desactiva, si quieres, **Pausar cuando haya una ventana maximizada**.
-7. Aplica los cambios.
+6. Elige si el audio debe estar **Deshabilitado** o **Habilitado**.
+7. Activa o desactiva, si quieres, **Pausar cuando haya una ventana maximizada**.
+8. Aplica los cambios.
 
 ### Pantalla de bloqueo (KScreenLocker)
 
@@ -100,10 +101,11 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 3. Abre **Configurar apariencia…**.
 4. En **Tipo de fondo de pantalla**, selecciona **KineWall**.
 5. Pulsa **Examinar…** y selecciona un archivo de video.
-6. Escoge el modo de posicionamiento y aplica los cambios.
-7. Pulsa **Meta + L** para probar la pantalla de bloqueo.
+6. Escoge el modo de posicionamiento y el modo de audio.
+7. Aplica los cambios.
+8. Pulsa **Meta + L** para probar la pantalla de bloqueo.
 
-El escritorio y la pantalla de bloqueo mantienen su propia configuración de fondo, por lo que pueden utilizar el mismo video o videos diferentes.
+El escritorio y la pantalla de bloqueo mantienen su propia configuración de fondo, por lo que pueden utilizar el mismo video o videos diferentes y configurar el audio de forma independiente.
 
 La opción **Pausar cuando haya una ventana maximizada** solo afecta al escritorio. KScreenLocker ignora las ventanas maximizadas, pero pausa el video mientras la pantalla está apagada y continúa desde la misma posición cuando vuelve a encenderse.
 
@@ -119,13 +121,14 @@ Si tu sesión no dispone de esta unidad de systemd de usuario, cierra sesión y 
 
 ## Audio
 
-KineWall no crea un `AudioOutput` y configura explícitamente:
+El audio está **deshabilitado por defecto** y puede cambiarse desde el panel de configuración de KineWall mediante el selector **Audio**:
 
-```qml
-activeAudioTrack: -1
-```
+- **Deshabilitado**: KineWall no conecta un `AudioOutput` al reproductor y establece `activeAudioTrack: -1`, manteniendo la pista de audio deshabilitada.
+- **Habilitado**: KineWall conecta un `AudioOutput` y activa la primera pista de audio mediante `activeAudioTrack: 0`.
 
-Por tanto, la pista de audio queda deshabilitada en lugar de simplemente reproducirse con volumen cero.
+La configuración de audio se guarda de forma independiente para cada configuración de fondo, incluyendo el escritorio y KScreenLocker.
+
+Actualmente KineWall ofrece un selector para habilitar o deshabilitar el audio; no incluye un control de volumen independiente.
 
 ## Pausa cuando una ventana está maximizada
 
