@@ -2,7 +2,7 @@
 
 [Español](README.es.md)
 
-**KineWall** is a QML wallpaper plugin for KDE Plasma 6 that plays a local video in a continuous loop while explicitly disabling the audio track (`activeAudioTrack: -1`).
+**KineWall** is a QML wallpaper plugin for KDE Plasma 6 that plays a local video in a continuous loop. Audio is disabled by default and can be enabled from the KineWall configuration panel.
 
 KineWall can be used both as the **Plasma Desktop wallpaper** and as the **KDE Plasma lock screen (KScreenLocker) wallpaper**.
 
@@ -90,8 +90,9 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 3. Under **Wallpaper Type**, select **KineWall**.
 4. Click **Browse…** and select a video file.
 5. Choose the desired positioning mode.
-6. Optionally enable or disable **Pause when a window is maximized**.
-7. Apply the changes.
+6. Choose whether audio should be **Disabled** or **Enabled**.
+7. Optionally enable or disable **Pause when a window is maximized**.
+8. Apply the changes.
 
 ### Lock screen (KScreenLocker)
 
@@ -100,10 +101,11 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 3. Open **Configure Appearance…**.
 4. Under **Wallpaper Type**, select **KineWall**.
 5. Click **Browse…** and select a video file.
-6. Choose the desired positioning mode and apply the changes.
-7. Press **Meta + L** to test the lock screen.
+6. Choose the desired positioning mode and audio mode.
+7. Apply the changes.
+8. Press **Meta + L** to test the lock screen.
 
-The desktop and lock screen keep their own wallpaper configuration, so they can use the same video or different videos.
+The desktop and lock screen keep their own wallpaper configuration, so they can use the same video or different videos and configure audio independently.
 
 The **Pause when a window is maximized** option only affects the desktop. KScreenLocker ignores maximized windows, but it pauses the video while the display is powered off and resumes from the same position when the display turns back on.
 
@@ -119,13 +121,14 @@ If your session does not provide this systemd user unit, log out and log back in
 
 ## Audio
 
-KineWall does not create an `AudioOutput` and explicitly configures:
+Audio is **disabled by default** and can be changed from the KineWall configuration panel using the **Audio** selector:
 
-```qml
-activeAudioTrack: -1
-```
+- **Disabled**: KineWall does not connect an `AudioOutput` to the player and sets `activeAudioTrack: -1`, keeping the audio track disabled.
+- **Enabled**: KineWall connects an `AudioOutput` and activates the first audio track with `activeAudioTrack: 0`.
 
-The audio track is therefore disabled rather than merely played at zero volume.
+The audio setting is stored independently for each wallpaper configuration, including the desktop and KScreenLocker.
+
+KineWall currently provides an enable/disable audio selector; it does not provide a separate volume control.
 
 ## Pause when a window is maximized
 
