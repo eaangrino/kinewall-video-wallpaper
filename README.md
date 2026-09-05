@@ -21,9 +21,11 @@ When KineWall is used by KScreenLocker, playback is also paused while the displa
 
 ## Install with `install.sh` — recommended
 
-Clone or extract the project, open a terminal in the project root, and run:
+Clone the repository, enter the project directory, make the installer executable, and run it:
 
 ```bash
+git clone https://github.com/eaangrino/kinewall-video-wallpaper.git
+cd kinewall-video-wallpaper
 chmod +x install.sh
 ./install.sh
 ```
