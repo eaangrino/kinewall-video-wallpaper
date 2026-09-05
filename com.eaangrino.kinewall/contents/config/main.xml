@@ -16,6 +16,11 @@
             <default>1</default>
         </entry>
 
+        <entry name="AudioEnabled" type="Bool">
+            <label>Enable audio</label>
+            <default>false</default>
+        </entry>
+
         <entry name="PauseOnMaximized" type="Bool">
             <label>Pause when a window is maximized</label>
             <default>true</default>

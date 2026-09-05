@@ -19,6 +19,16 @@ WallpaperItem {
         return Qt.rect(0, 0, 0, 0);
     }
 
+    readonly property bool audioEnabled: {
+        const value = root.configuration.AudioEnabled;
+
+        if (value === undefined || value === null) {
+            return false;
+        }
+
+        return Boolean(value);
+    }
+
     readonly property bool pauseOnMaximized: {
         const value = root.configuration.PauseOnMaximized;
 
@@ -208,14 +218,20 @@ WallpaperItem {
         }
     }
 
+    AudioOutput {
+        id: wallpaperAudioOutput
+        muted: !root.audioEnabled
+    }
+
     MediaPlayer {
         id: player
 
         source: root.videoUrl
         videoOutput: wallpaperVideoOutput
+        audioOutput: root.audioEnabled ? wallpaperAudioOutput : null
 
-        // Audio is disabled, not merely set to zero volume.
-        activeAudioTrack: -1
+        // Keep the audio track fully disabled unless the user explicitly enables it.
+        activeAudioTrack: root.audioEnabled ? 0 : -1
         activeSubtitleTrack: -1
 
         loops: MediaPlayer.Infinite

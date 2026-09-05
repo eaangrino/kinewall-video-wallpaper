@@ -12,6 +12,7 @@ Kirigami.FormLayout {
 
     property string cfg_Video: ""
     property int cfg_FillMode: 1
+    property bool cfg_AudioEnabled: false
     property bool cfg_PauseOnMaximized: true
 
     twinFormLayouts: parentLayout
@@ -52,6 +53,25 @@ Kirigami.FormLayout {
         onActivated: root.cfg_FillMode = currentIndex
     }
 
+    Controls.ComboBox {
+        id: audioMode
+        Kirigami.FormData.label: "Audio:"
+        Layout.fillWidth: true
+
+        model: ["Disabled", "Enabled"]
+
+        currentIndex: root.cfg_AudioEnabled ? 1 : 0
+        onActivated: root.cfg_AudioEnabled = currentIndex === 1
+    }
+
+    Controls.Label {
+        Layout.fillWidth: true
+        Layout.maximumWidth: 520
+        wrapMode: Text.WordWrap
+        opacity: 0.75
+        text: "Audio is disabled by default. When disabled, KineWall does not activate an audio track."
+    }
+
     Controls.CheckBox {
         Kirigami.FormData.label: "Performance:"
         text: "Pause when a window is maximized"
@@ -67,12 +87,6 @@ Kirigami.FormLayout {
         text: "When enabled, KineWall pauses the video when it detects a maximized, non-minimized window on this monitor. When no maximized window remains, playback resumes from the same position."
     }
 
-    Controls.Label {
-        Kirigami.FormData.label: "Audio:"
-        Layout.fillWidth: true
-        wrapMode: Text.WordWrap
-        text: "Always disabled. The video plays in a continuous loop."
-    }
 
     FileDialog {
         id: fileDialog
