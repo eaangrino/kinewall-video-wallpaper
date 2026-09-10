@@ -25,5 +25,10 @@
             <label>Pause when a window is maximized</label>
             <default>true</default>
         </entry>
+
+        <entry name="DebugEnabled" type="Bool">
+            <label>Enable debug logging</label>
+            <default>false</default>
+        </entry>
     </group>
 </kcfg>

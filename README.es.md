@@ -160,6 +160,30 @@ KineWall mantiene una sonda ligera de presentación mientras está pausado. Cuan
 
 Este comportamiento está limitado a KScreenLocker. El fondo del escritorio no se pausa únicamente porque cambie el estado de la sonda de energía de la pantalla.
 
+## Logs de depuración
+
+KineWall incluye la opción **Enable debug logging** al final de su panel de configuración. Está desactivada por defecto.
+
+Cuando se activa, KineWall escribe diagnósticos con el prefijo `[KineWall]`, incluyendo cambios de la fuente multimedia, estado de Qt Multimedia, estado y acciones de reproducción, motivos de pausa/reanudación, estado de pantalla usado por la sonda de la pantalla de bloqueo y errores de `MediaPlayer`. Los mensajes de Qt Multimedia o de bibliotecas externas emitidos fuera de KineWall también pueden aparecer en el journal del mismo proceso.
+
+Para recolectar los logs:
+
+1. Activa **Debug → Enable debug logging** y aplica la configuración.
+2. Reproduce el problema.
+3. Exporta la salida reciente del journal de Plasma y KScreenLocker:
+
+```bash
+journalctl --user --since "10 minutes ago" | grep -E 'plasmashell|kscreenlocker_greet' > kinewall-debug.log
+```
+
+Para ver únicamente los mensajes generados directamente por KineWall:
+
+```bash
+grep -F '[KineWall]' kinewall-debug.log
+```
+
+La salida de depuración puede incluir la ruta local completa del video. Revisa el archivo antes de compartirlo públicamente. Desactiva los logs de depuración después de reproducir el problema para evitar ruido innecesario en el journal.
+
 ## Licencia
 
 MIT

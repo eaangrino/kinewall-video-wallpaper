@@ -160,6 +160,30 @@ KineWall keeps a lightweight presentation probe active while paused. When the di
 
 This behavior is limited to KScreenLocker. The desktop wallpaper is not paused merely because a display-power probe changes state.
 
+## Debug logging
+
+KineWall provides an optional **Enable debug logging** setting at the bottom of its configuration panel. It is disabled by default.
+
+When enabled, KineWall writes runtime diagnostics with the `[KineWall]` prefix, including media source changes, Qt Multimedia status, playback state and actions, pause/resume reasons, screen state used by the lock-screen probe, and `MediaPlayer` errors. Qt Multimedia or external-library messages emitted outside KineWall may also appear in the same process journal.
+
+To collect logs:
+
+1. Enable **Debug → Enable debug logging** and apply the configuration.
+2. Reproduce the problem.
+3. Export recent Plasma and KScreenLocker journal output:
+
+```bash
+journalctl --user --since "10 minutes ago" | grep -E 'plasmashell|kscreenlocker_greet' > kinewall-debug.log
+```
+
+To view only messages emitted directly by KineWall:
+
+```bash
+grep -F '[KineWall]' kinewall-debug.log
+```
+
+The debug output can include the full local video path. Review the log before sharing it publicly. Disable debug logging after reproducing the problem to avoid unnecessary journal noise.
+
 ## License
 
 MIT

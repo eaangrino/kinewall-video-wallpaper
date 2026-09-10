@@ -14,6 +14,7 @@ Kirigami.FormLayout {
     property int cfg_FillMode: 1
     property bool cfg_AudioEnabled: false
     property bool cfg_PauseOnMaximized: true
+    property bool cfg_DebugEnabled: false
 
     twinFormLayouts: parentLayout
 
@@ -87,6 +88,20 @@ Kirigami.FormLayout {
         text: "When enabled, KineWall pauses the video when it detects a maximized, non-minimized window on this monitor. When no maximized window remains, playback resumes from the same position."
     }
 
+    Controls.CheckBox {
+        Kirigami.FormData.label: "Debug:"
+        text: "Enable debug logging"
+        checked: root.cfg_DebugEnabled
+        onToggled: root.cfg_DebugEnabled = checked
+    }
+
+    Controls.Label {
+        Layout.fillWidth: true
+        Layout.maximumWidth: 520
+        wrapMode: Text.WordWrap
+        opacity: 0.75
+        text: "Writes KineWall runtime events and multimedia errors to the Plasma journal. Enable it only while diagnosing a problem."
+    }
 
     FileDialog {
         id: fileDialog

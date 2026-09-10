@@ -39,6 +39,16 @@ WallpaperItem {
         return Boolean(value);
     }
 
+    readonly property bool debugEnabled: {
+        const value = root.configuration.DebugEnabled;
+
+        if (value === undefined || value === null) {
+            return false;
+        }
+
+        return Boolean(value);
+    }
+
     // The model is already filtered to contain only windows:
     // - on the current virtual desktop
     // - in the current activity
@@ -54,6 +64,7 @@ WallpaperItem {
     // update once per second. If two consecutive probes are not presented by the
     // containing QQuickWindow, KWin has stopped presenting this lock-screen surface.
     property bool screenPoweredOff: false
+    property bool componentReady: false
     property bool screenProbePending: false
     property int missedScreenProbeCount: 0
     property bool screenRenderProbeToggle: false
@@ -84,9 +95,95 @@ WallpaperItem {
         return Number.isFinite(value) ? value : 1;
     }
 
-    function syncPlayback() {
+    function debugLog(message) {
+        if (root.debugEnabled) {
+            console.log("[KineWall] " + message);
+        }
+    }
+
+    function debugError(message) {
+        if (root.debugEnabled) {
+            console.error("[KineWall] " + message);
+        }
+    }
+
+    function playbackStateName(state) {
+        switch (state) {
+        case MediaPlayer.PlayingState:
+            return "PlayingState";
+        case MediaPlayer.PausedState:
+            return "PausedState";
+        case MediaPlayer.StoppedState:
+            return "StoppedState";
+        default:
+            return "Unknown(" + state + ")";
+        }
+    }
+
+    function mediaStatusName(status) {
+        switch (status) {
+        case MediaPlayer.NoMedia:
+            return "NoMedia";
+        case MediaPlayer.LoadingMedia:
+            return "LoadingMedia";
+        case MediaPlayer.LoadedMedia:
+            return "LoadedMedia";
+        case MediaPlayer.StalledMedia:
+            return "StalledMedia";
+        case MediaPlayer.BufferingMedia:
+            return "BufferingMedia";
+        case MediaPlayer.BufferedMedia:
+            return "BufferedMedia";
+        case MediaPlayer.EndOfMedia:
+            return "EndOfMedia";
+        case MediaPlayer.InvalidMedia:
+            return "InvalidMedia";
+        default:
+            return "Unknown(" + status + ")";
+        }
+    }
+
+    function mediaErrorName(error) {
+        switch (error) {
+        case MediaPlayer.NoError:
+            return "NoError";
+        case MediaPlayer.ResourceError:
+            return "ResourceError";
+        case MediaPlayer.FormatError:
+            return "FormatError";
+        case MediaPlayer.NetworkError:
+            return "NetworkError";
+        case MediaPlayer.AccessDeniedError:
+            return "AccessDeniedError";
+        default:
+            return "Unknown(" + error + ")";
+        }
+    }
+
+    function logRuntimeSnapshot(context) {
+        root.debugLog(
+            "snapshot context=" + context
+            + " app=" + Qt.application.name
+            + " screenLocker=" + root.isScreenLocker
+            + " screenGeometry=" + root.wallpaperScreenGeometry.x + "," + root.wallpaperScreenGeometry.y + "," + root.wallpaperScreenGeometry.width + "x" + root.wallpaperScreenGeometry.height
+            + " source=" + player.source.toString()
+            + " playbackState=" + root.playbackStateName(player.playbackState)
+            + " mediaStatus=" + root.mediaStatusName(player.mediaStatus)
+            + " positionMs=" + player.position
+            + " durationMs=" + player.duration
+            + " audioEnabled=" + root.audioEnabled
+            + " activeAudioTrack=" + player.activeAudioTrack
+            + " pauseOnMaximized=" + root.pauseOnMaximized
+            + " hasMaximizedWindow=" + root.hasMaximizedWindow
+            + " screenPoweredOff=" + root.screenPoweredOff
+        );
+    }
+
+    function syncPlayback(trigger) {
+        const syncTrigger = trigger || "unspecified";
         if (player.source.toString().length === 0) {
             if (player.playbackState !== MediaPlayer.StoppedState) {
+                root.debugLog("playback action=stop reason=no-source trigger=" + syncTrigger);
                 player.stop();
             }
             return;
@@ -95,6 +192,8 @@ WallpaperItem {
         if (root.shouldPauseForMaximizedWindow || root.shouldPauseForScreenPower) {
             // pause() preserves the current video position.
             if (player.playbackState === MediaPlayer.PlayingState) {
+                const pauseReason = root.shouldPauseForScreenPower ? "screen-powered-off" : "maximized-window";
+                root.debugLog("playback action=pause reason=" + pauseReason + " trigger=" + syncTrigger + " positionMs=" + player.position);
                 player.pause();
             }
             return;
@@ -102,12 +201,33 @@ WallpaperItem {
 
         // Only play when the media is ready.
         if ((player.mediaStatus === MediaPlayer.LoadedMedia || player.mediaStatus === MediaPlayer.BufferedMedia || player.mediaStatus === MediaPlayer.BufferingMedia) && player.playbackState !== MediaPlayer.PlayingState) {
+            root.debugLog("playback action=play trigger=" + syncTrigger + " positionMs=" + player.position);
             player.play();
         }
     }
 
-    onShouldPauseForMaximizedWindowChanged: syncPlayback()
-    onShouldPauseForScreenPowerChanged: syncPlayback()
+    onAudioEnabledChanged: root.debugLog("configuration audioEnabled=" + root.audioEnabled)
+    onPauseOnMaximizedChanged: root.debugLog("configuration pauseOnMaximized=" + root.pauseOnMaximized)
+    onConfiguredFillModeChanged: root.debugLog("configuration fillMode=" + root.configuredFillMode)
+    onVideoUrlChanged: root.debugLog("configuration videoUrl=" + root.videoUrl.toString())
+    onWallpaperScreenGeometryChanged: root.debugLog("screen geometry=" + root.wallpaperScreenGeometry.x + "," + root.wallpaperScreenGeometry.y + "," + root.wallpaperScreenGeometry.width + "x" + root.wallpaperScreenGeometry.height)
+    onDebugEnabledChanged: {
+        if (root.debugEnabled) {
+            root.debugLog("debug logging enabled");
+
+            if (root.componentReady) {
+                root.logRuntimeSnapshot("debug-enabled");
+            }
+        }
+    }
+    onShouldPauseForMaximizedWindowChanged: {
+        root.debugLog("pause condition=maximized-window active=" + root.shouldPauseForMaximizedWindow + " matchingWindows=" + maximizedTasks.count);
+        root.syncPlayback("maximized-window-condition");
+    }
+    onShouldPauseForScreenPowerChanged: {
+        root.debugLog("pause condition=screen-power active=" + root.shouldPauseForScreenPower + " missedProbes=" + root.missedScreenProbeCount);
+        root.syncPlayback("screen-power-condition");
+    }
 
     TaskManager.VirtualDesktopInfo {
         id: virtualDesktopInfo
@@ -237,12 +357,32 @@ WallpaperItem {
         loops: MediaPlayer.Infinite
 
         onSourceChanged: {
+            root.debugLog("media source=" + source.toString());
+
             if (source.toString().length === 0) {
+                root.debugLog("playback action=stop reason=source-cleared");
                 stop();
             }
         }
 
-        onMediaStatusChanged: root.syncPlayback()
+        onMediaStatusChanged: {
+            root.debugLog("media status=" + root.mediaStatusName(mediaStatus) + " positionMs=" + position + " durationMs=" + duration);
+            root.syncPlayback("media-status");
+        }
+
+        onPlaybackStateChanged: root.debugLog("playback state=" + root.playbackStateName(playbackState) + " positionMs=" + position)
+
+        onErrorOccurred: (error, errorString) => {
+            root.debugError(
+                "media error=" + root.mediaErrorName(error)
+                + " code=" + error
+                + " message=" + errorString
+                + " status=" + root.mediaStatusName(mediaStatus)
+                + " state=" + root.playbackStateName(playbackState)
+                + " positionMs=" + position
+                + " source=" + source.toString()
+            );
+        }
     }
 
     Text {
@@ -255,5 +395,10 @@ WallpaperItem {
         visible: player.error !== MediaPlayer.NoError && text.length > 0
     }
 
-    Component.onCompleted: root.syncPlayback()
+    Component.onCompleted: {
+        root.componentReady = true;
+        root.debugLog("component completed");
+        root.logRuntimeSnapshot("component-completed");
+        root.syncPlayback("component-completed");
+    }
 }
