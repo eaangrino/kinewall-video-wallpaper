@@ -36,14 +36,6 @@ fi
 gh auth status --hostname github.com >/dev/null 2>&1 || \
     fail "GitHub CLI is not authenticated. Run: gh auth login"
 
-printf 'Fetching %s and tags...\n' "$MAIN_BRANCH"
-git fetch origin "$MAIN_BRANCH" --tags --prune
-
-head_sha="$(git rev-parse HEAD)"
-origin_sha="$(git rev-parse "origin/$MAIN_BRANCH")"
-[[ "$head_sha" == "$origin_sha" ]] || \
-    fail "Local '$MAIN_BRANCH' does not match origin/$MAIN_BRANCH. Pull or push your changes first."
-
 if ! version="$(python3 - "$METADATA_FILE" <<'PY'
 import json
 import sys
@@ -70,6 +62,8 @@ readonly TITLE="Kinewall - $VERSION"
 readonly DIST_DIR="$repo_root/dist"
 readonly ZIP_FILE="$DIST_DIR/kinewall-$VERSION.zip"
 
+printf 'Preparing release %s from %s...\n' "$TAG" "$METADATA_FILE"
+
 if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
     fail "Remote tag $TAG already exists. Refusing to overwrite it."
 fi
@@ -77,6 +71,14 @@ fi
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
     fail "GitHub release $TAG already exists. Refusing to overwrite it."
 fi
+
+printf 'Fetching %s...\n' "$MAIN_BRANCH"
+git fetch origin "$MAIN_BRANCH" --prune
+
+head_sha="$(git rev-parse HEAD)"
+origin_sha="$(git rev-parse "origin/$MAIN_BRANCH")"
+[[ "$head_sha" == "$origin_sha" ]] || \
+    fail "Local '$MAIN_BRANCH' does not match origin/$MAIN_BRANCH. Pull or push your changes first."
 
 mkdir -p "$DIST_DIR"
 rm -f "$ZIP_FILE"
