@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-**KineWall** es un plugin QML de fondo de pantalla para KDE Plasma 6 que reproduce un video local en bucle continuo. El audio está deshabilitado por defecto y puede habilitarse desde el panel de configuración de KineWall.
+**KineWall** es un plugin QML de fondo de pantalla para KDE Plasma 6 que reproduce videos locales como fondo. Permite usar un solo video en bucle o una playlist explícita. El audio está deshabilitado por defecto y puede habilitarse desde el panel de configuración de KineWall.
 
 KineWall puede utilizarse tanto como **fondo de Plasma Desktop** como en la **pantalla de bloqueo de KDE Plasma (KScreenLocker)**.
 
@@ -90,9 +90,9 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 1. Haz clic derecho sobre el escritorio.
 2. Selecciona **Configurar escritorio y fondo de pantalla**.
 3. En **Tipo de fondo de pantalla**, selecciona **KineWall**.
-4. Pulsa **Examinar…** y selecciona un archivo de video.
-5. Escoge el modo de posicionamiento.
-6. Elige si el audio debe estar **Deshabilitado** o **Habilitado**.
+4. Elige un modo de reproducción: **Simple** o **Playlist**.
+5. Configura el modo seleccionado y escoge el modo de posicionamiento.
+6. Elige si el audio debe estar **Deshabilitado** o **Habilitado** y, cuando esté habilitado, ajusta su volumen.
 7. Activa o desactiva, si quieres, **Pausar cuando haya una ventana maximizada**.
 8. Aplica los cambios.
 
@@ -102,14 +102,32 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 2. Ve a **Seguridad y privacidad → Bloqueo de pantalla**.
 3. Abre **Configurar apariencia…**.
 4. En **Tipo de fondo de pantalla**, selecciona **KineWall**.
-5. Pulsa **Examinar…** y selecciona un archivo de video.
-6. Escoge el modo de posicionamiento y el modo de audio.
+5. Elige **Simple** o **Playlist** y configura sus videos.
+6. Escoge el modo de posicionamiento y el modo de audio; cuando el audio esté habilitado, ajusta su volumen si lo necesitas.
 7. Aplica los cambios.
 8. Pulsa **Meta + L** para probar la pantalla de bloqueo.
 
 El escritorio y la pantalla de bloqueo mantienen su propia configuración de fondo, por lo que pueden utilizar el mismo video o videos diferentes y configurar el audio de forma independiente.
 
 La opción **Pausar cuando haya una ventana maximizada** solo afecta al escritorio. KScreenLocker ignora las ventanas maximizadas, pero pausa el video mientras la pantalla está apagada y continúa desde la misma posición cuando vuelve a encenderse.
+
+## Modos de reproducción
+
+KineWall ofrece dos modos de reproducción:
+
+- **Simple** reproduce un solo video seleccionado en bucle continuo.
+- **Playlist** reproduce archivos seleccionados explícitamente en el orden mostrado. Arrastra el control de reordenamiento de un video para colocarlo en cualquier posición de la lista. Cada video se reproduce completo antes de avanzar al siguiente y, al terminar la lista, vuelve al primero.
+
+## Posicionamiento
+
+Los modos de posicionamiento disponibles son:
+
+- **Scaled and Cropped**: escala proporcionalmente para llenar la pantalla y recorta lo que sobresale.
+- **Scaled**: estira el video al área del fondo.
+- **Scaled, keep proportions**: muestra el video completo conservando su proporción.
+- **Centered**: muestra el video al tamaño nativo de la fuente y lo centra.
+
+**Scaled, keep proportions** y **Centered** muestran una opción **Solid color** para el área de fondo que queda sin cubrir.
 
 ## Recargar Plasma si es necesario
 
@@ -126,11 +144,9 @@ Si tu sesión no dispone de esta unidad de systemd de usuario, cierra sesión y 
 El audio está **deshabilitado por defecto** y puede cambiarse desde el panel de configuración de KineWall mediante el selector **Audio**:
 
 - **Deshabilitado**: KineWall no conecta un `AudioOutput` al reproductor y establece `activeAudioTrack: -1`, manteniendo la pista de audio deshabilitada.
-- **Habilitado**: KineWall conecta un `AudioOutput` y activa la primera pista de audio mediante `activeAudioTrack: 0`.
+- **Habilitado**: KineWall conecta un `AudioOutput` y activa la primera pista de audio mediante `activeAudioTrack: 0`. Debajo del selector aparece un control **Volume** que puede ajustarse entre 0% y 100%.
 
-La configuración de audio se guarda de forma independiente para cada configuración de fondo, incluyendo el escritorio y KScreenLocker.
-
-Actualmente KineWall ofrece un selector para habilitar o deshabilitar el audio; no incluye un control de volumen independiente.
+El estado del audio y el volumen se guardan de forma independiente para cada configuración de fondo, incluyendo el escritorio y KScreenLocker. El volumen predeterminado es 100%, conservando el comportamiento anterior de volumen completo cuando se habilita el audio.
 
 ## Pausa cuando una ventana está maximizada
 

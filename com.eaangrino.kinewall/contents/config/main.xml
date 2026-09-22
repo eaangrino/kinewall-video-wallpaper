@@ -11,14 +11,34 @@
             <default></default>
         </entry>
 
+        <entry name="PlaybackMode" type="Int">
+            <label>Playback mode</label>
+            <default>0</default>
+        </entry>
+
+        <entry name="Playlist" type="StringList">
+            <label>Playlist video files</label>
+            <default></default>
+        </entry>
+
         <entry name="FillMode" type="Int">
             <label>Fill mode</label>
             <default>1</default>
         </entry>
 
+        <entry name="BackgroundColor" type="Color">
+            <label>Background color</label>
+            <default>#000000</default>
+        </entry>
+
         <entry name="AudioEnabled" type="Bool">
             <label>Enable audio</label>
             <default>false</default>
+        </entry>
+
+        <entry name="AudioVolume" type="Int">
+            <label>Audio volume percentage</label>
+            <default>100</default>
         </entry>
 
         <entry name="PauseOnMaximized" type="Bool">

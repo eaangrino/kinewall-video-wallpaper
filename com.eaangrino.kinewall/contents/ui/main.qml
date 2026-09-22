@@ -21,32 +21,38 @@ WallpaperItem {
 
     readonly property bool audioEnabled: {
         const value = root.configuration.AudioEnabled;
+        return value === undefined || value === null ? false : Boolean(value);
+    }
 
-        if (value === undefined || value === null) {
-            return false;
-        }
-
-        return Boolean(value);
+    readonly property real audioVolume: {
+        const value = Number(root.configuration.AudioVolume);
+        const percent = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 100;
+        return percent / 100.0;
     }
 
     readonly property bool pauseOnMaximized: {
         const value = root.configuration.PauseOnMaximized;
-
-        if (value === undefined || value === null) {
-            return true;
-        }
-
-        return Boolean(value);
+        return value === undefined || value === null ? true : Boolean(value);
     }
 
     readonly property bool debugEnabled: {
         const value = root.configuration.DebugEnabled;
+        return value === undefined || value === null ? false : Boolean(value);
+    }
 
-        if (value === undefined || value === null) {
-            return false;
-        }
+    readonly property int playbackMode: {
+        const value = Number(root.configuration.PlaybackMode);
+        return Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0;
+    }
 
-        return Boolean(value);
+    readonly property var configuredPlaylist: {
+        const value = root.configuration.Playlist;
+        return value === undefined || value === null ? [] : value;
+    }
+
+    readonly property color backgroundColor: {
+        const value = root.configuration.BackgroundColor;
+        return value === undefined || value === null ? "#000000" : value;
     }
 
     // The model is already filtered to contain only windows:
@@ -56,7 +62,6 @@ WallpaperItem {
     // - not minimized
     // - maximized
     readonly property bool isScreenLocker: Qt.application.name === "kscreenlocker_greet"
-
     readonly property bool hasMaximizedWindow: !root.isScreenLocker && maximizedTasks.count > 0
     readonly property bool shouldPauseForMaximizedWindow: root.pauseOnMaximized && root.hasMaximizedWindow
 
@@ -70,15 +75,39 @@ WallpaperItem {
     property bool screenRenderProbeToggle: false
     readonly property bool shouldPauseForScreenPower: root.isScreenLocker && root.screenPoweredOff
 
-    readonly property url videoUrl: {
-        const configured = root.configuration.Video;
+    readonly property url simpleVideoUrl: root.normalizeVideoUrl(root.configuration.Video)
+    property url currentVideoUrl: ""
+    property var playbackQueue: []
+    property int currentVideoIndex: -1
+    // Keep the standby player unloaded until the active video is near its end.
+    // Then decode only the next video's first frame so EndOfMedia can swap
+    // outputs quickly without retaining decoder resources for the whole video.
+    readonly property int preloadLeadTimeMs: 3000
+    property int activePlayerSlot: 0
+    property url preparedVideoUrl: ""
+    property int preparedVideoIndex: -1
+    property bool preparedFrameReady: false
+    property bool transitionPending: false
+    property double transitionRequestedAt: 0
+    property bool resettingPlayers: false
+    property var unavailableVideoSources: []
 
+    readonly property var activePlayer: root.activePlayerSlot === 0 ? playerA : playerB
+    readonly property var standbyPlayer: root.activePlayerSlot === 0 ? playerB : playerA
+    readonly property var activeVideoOutput: root.activePlayerSlot === 0 ? wallpaperVideoOutputA : wallpaperVideoOutputB
+    readonly property var standbyVideoOutput: root.activePlayerSlot === 0 ? wallpaperVideoOutputB : wallpaperVideoOutputA
+
+    readonly property int configuredFillMode: {
+        const value = Number(root.configuration.FillMode);
+        return Number.isFinite(value) ? value : 1;
+    }
+
+    function normalizeVideoUrl(configured) {
         if (configured === undefined || configured === null) {
             return "";
         }
 
         const value = configured.toString().trim();
-
         if (value.length === 0) {
             return "";
         }
@@ -87,12 +116,11 @@ WallpaperItem {
             return value;
         }
 
-        return "file://" + value;
-    }
+        if (value.startsWith("/")) {
+            return "file://" + value;
+        }
 
-    readonly property int configuredFillMode: {
-        const value = Number(root.configuration.FillMode);
-        return Number.isFinite(value) ? value : 1;
+        return value;
     }
 
     function debugLog(message) {
@@ -161,60 +189,477 @@ WallpaperItem {
     }
 
     function logRuntimeSnapshot(context) {
+        const active = root.activePlayer;
         root.debugLog(
             "snapshot context=" + context
             + " app=" + Qt.application.name
             + " screenLocker=" + root.isScreenLocker
             + " screenGeometry=" + root.wallpaperScreenGeometry.x + "," + root.wallpaperScreenGeometry.y + "," + root.wallpaperScreenGeometry.width + "x" + root.wallpaperScreenGeometry.height
-            + " source=" + player.source.toString()
-            + " playbackState=" + root.playbackStateName(player.playbackState)
-            + " mediaStatus=" + root.mediaStatusName(player.mediaStatus)
-            + " positionMs=" + player.position
-            + " durationMs=" + player.duration
+            + " playbackMode=" + root.playbackMode
+            + " source=" + active.source.toString()
+            + " queueIndex=" + root.currentVideoIndex
+            + " queueCount=" + root.playbackQueue.length
+            + " playbackState=" + root.playbackStateName(active.playbackState)
+            + " mediaStatus=" + root.mediaStatusName(active.mediaStatus)
+            + " positionMs=" + active.position
+            + " durationMs=" + active.duration
             + " audioEnabled=" + root.audioEnabled
-            + " activeAudioTrack=" + player.activeAudioTrack
+            + " audioVolume=" + root.audioVolume
+            + " activeAudioTrack=" + active.activeAudioTrack
             + " pauseOnMaximized=" + root.pauseOnMaximized
             + " hasMaximizedWindow=" + root.hasMaximizedWindow
             + " screenPoweredOff=" + root.screenPoweredOff
+            + " preparedSource=" + root.preparedVideoUrl.toString()
+            + " preparedFrameReady=" + root.preparedFrameReady
+            + " transitionPending=" + root.transitionPending
         );
+    }
+
+    function playlistVideos() {
+        const videos = [];
+        for (let i = 0; i < root.configuredPlaylist.length; ++i) {
+            const source = root.normalizeVideoUrl(root.configuredPlaylist[i]);
+            if (source.toString().length > 0) {
+                videos.push({ source: source.toString(), name: source.toString(), modified: 0 });
+            }
+        }
+        return videos;
+    }
+
+    function sourceUnavailable(source) {
+        return root.unavailableVideoSources.indexOf(source.toString()) >= 0;
+    }
+
+    function markSourceUnavailable(source) {
+        const value = source.toString();
+        if (value.length === 0 || root.sourceUnavailable(value)) {
+            return;
+        }
+
+        root.unavailableVideoSources = root.unavailableVideoSources.concat([value]);
+    }
+
+    function clearPreparedState(stopStandby) {
+        root.transitionPending = false;
+        root.transitionRequestedAt = 0;
+        root.preparedVideoUrl = "";
+        root.preparedVideoIndex = -1;
+        root.preparedFrameReady = false;
+
+        if (stopStandby) {
+            const standby = root.standbyPlayer;
+            standby.stop();
+            standby.source = "";
+        }
+    }
+
+    function nextVideoSelection() {
+        if (root.playbackQueue.length === 0 || root.currentVideoIndex < 0) {
+            return null;
+        }
+
+        const startIndex = (root.currentVideoIndex + 1) % root.playbackQueue.length;
+
+        for (let offset = 0; offset < root.playbackQueue.length; ++offset) {
+            const index = (startIndex + offset) % root.playbackQueue.length;
+            const source = root.playbackQueue[index].source.toString();
+            if (root.sourceUnavailable(source)) {
+                continue;
+            }
+
+            if (root.playbackQueue.length > 1 && source === root.currentVideoUrl.toString()) {
+                continue;
+            }
+
+            return {
+                source: source,
+                index: index
+            };
+        }
+
+        return null;
+    }
+
+    function prepareNextVideo() {
+        if (root.playbackMode === 0 || root.playbackQueue.length <= 1 || root.currentVideoIndex < 0 || root.preparedVideoUrl.toString().length > 0) {
+            return;
+        }
+
+        const selection = root.nextVideoSelection();
+        if (selection === null) {
+            return;
+        }
+
+        root.preparedVideoUrl = root.normalizeVideoUrl(selection.source);
+        root.preparedVideoIndex = selection.index;
+        root.preparedFrameReady = false;
+
+        const standby = root.standbyPlayer;
+        standby.stop();
+        standby.source = root.preparedVideoUrl;
+        root.debugLog("preload action=load source=" + root.preparedVideoUrl.toString() + " index=" + root.preparedVideoIndex);
+    }
+
+    function warmPreparedVideo() {
+        if (root.preparedVideoUrl.toString().length === 0 || root.preparedFrameReady) {
+            return;
+        }
+
+        if (root.shouldPauseForMaximizedWindow || root.shouldPauseForScreenPower) {
+            return;
+        }
+
+        if (!root.transitionPending && root.activePlayer.playbackState !== MediaPlayer.PlayingState) {
+            return;
+        }
+
+        const standby = root.standbyPlayer;
+        if (standby.source.toString() !== root.preparedVideoUrl.toString()) {
+            return;
+        }
+
+        if (standby.mediaStatus === MediaPlayer.LoadedMedia || standby.mediaStatus === MediaPlayer.BufferedMedia || standby.mediaStatus === MediaPlayer.BufferingMedia) {
+            if (standby.playbackState !== MediaPlayer.PlayingState) {
+                root.debugLog("preload action=warm source=" + standby.source.toString());
+                standby.play();
+            }
+        }
+    }
+
+    function handleStandbyFrame() {
+        const standby = root.standbyPlayer;
+        if (root.preparedVideoUrl.toString().length === 0
+                || standby.source.toString() !== root.preparedVideoUrl.toString()
+                || standby.playbackState !== MediaPlayer.PlayingState
+                || root.preparedFrameReady) {
+            return;
+        }
+
+        root.preparedFrameReady = true;
+        root.debugLog("preload action=first-frame-ready source=" + standby.source.toString() + " positionMs=" + standby.position);
+
+        if (root.transitionPending && !root.shouldPauseForMaximizedWindow && !root.shouldPauseForScreenPower) {
+            root.commitPreparedTransition("first-frame-ready");
+            return;
+        }
+
+        // Retain the decoded first frame without continuously decoding the
+        // standby video until it is actually time to display it.
+        standby.pause();
+    }
+
+    function requestVideoTransition(trigger) {
+        if (root.playbackMode === 0 || root.playbackQueue.length <= 1) {
+            return;
+        }
+
+        if (root.transitionPending) {
+            if (root.preparedFrameReady && !root.shouldPauseForMaximizedWindow && !root.shouldPauseForScreenPower) {
+                root.commitPreparedTransition(trigger);
+            } else {
+                root.warmPreparedVideo();
+            }
+            return;
+        }
+
+        if (root.preparedVideoUrl.toString().length === 0) {
+            root.prepareNextVideo();
+        }
+
+        if (root.preparedVideoUrl.toString().length === 0) {
+            root.debugError("transition action=unavailable trigger=" + trigger);
+            return;
+        }
+
+        root.transitionPending = true;
+        root.transitionRequestedAt = Date.now();
+        root.debugLog("transition action=request trigger=" + trigger + " prepared=" + root.preparedVideoUrl.toString());
+
+        if (root.shouldPauseForMaximizedWindow || root.shouldPauseForScreenPower) {
+            return;
+        }
+
+        if (root.preparedFrameReady) {
+            root.commitPreparedTransition(trigger);
+        } else {
+            root.warmPreparedVideo();
+        }
+    }
+
+    function commitPreparedTransition(trigger) {
+        if (!root.transitionPending || root.preparedVideoUrl.toString().length === 0) {
+            return;
+        }
+
+        if (root.shouldPauseForMaximizedWindow || root.shouldPauseForScreenPower) {
+            return;
+        }
+
+        const oldPlayer = root.activePlayer;
+        const newPlayer = root.standbyPlayer;
+        const nextSlot = root.activePlayerSlot === 0 ? 1 : 0;
+        const nextSource = root.preparedVideoUrl;
+        const nextIndex = root.preparedVideoIndex;
+        const requestedAt = root.transitionRequestedAt;
+
+        root.transitionPending = false;
+        root.transitionRequestedAt = 0;
+        root.preparedVideoUrl = "";
+        root.preparedVideoIndex = -1;
+        root.preparedFrameReady = false;
+
+        root.currentVideoIndex = nextIndex;
+        root.currentVideoUrl = nextSource;
+
+        // The standby output already contains a decoded first frame. Make it
+        // visible first, then release the now-hidden old player and resume.
+        root.activePlayerSlot = nextSlot;
+        oldPlayer.stop();
+        oldPlayer.source = "";
+
+        if (newPlayer.playbackState !== MediaPlayer.PlayingState) {
+            newPlayer.play();
+        }
+
+        const transitionDelay = requestedAt > 0 ? Math.max(0, Date.now() - requestedAt) : 0;
+        root.debugLog("transition action=commit trigger=" + trigger + " source=" + nextSource.toString() + " index=" + nextIndex + " delayMs=" + transitionDelay);
+    }
+
+    function handlePreparedVideoFailure(failedSource) {
+        const source = failedSource.toString();
+        const retryTransition = root.transitionPending;
+        root.markSourceUnavailable(source);
+        root.debugError("preload action=skip-invalid source=" + source);
+        root.clearPreparedState(true);
+        root.prepareNextVideo();
+
+        if (retryTransition && root.preparedVideoUrl.toString().length > 0) {
+            root.requestVideoTransition("skip-invalid-preload");
+        }
+    }
+
+    function setCurrentVideo(source, trigger) {
+        root.transitionPending = false;
+        root.transitionRequestedAt = 0;
+        root.preparedVideoUrl = "";
+        root.preparedVideoIndex = -1;
+        root.preparedFrameReady = false;
+
+        root.resettingPlayers = true;
+        playerA.stop();
+        playerB.stop();
+        playerA.source = "";
+        playerB.source = "";
+        root.activePlayerSlot = 0;
+
+        root.currentVideoUrl = root.normalizeVideoUrl(source);
+        if (root.currentVideoUrl.toString().length > 0) {
+            playerA.source = root.currentVideoUrl;
+        }
+        root.resettingPlayers = false;
+
+        root.debugLog("queue source=" + root.currentVideoUrl.toString() + " index=" + root.currentVideoIndex + " trigger=" + trigger);
+    }
+
+    function rebuildPlayback(trigger) {
+        root.playbackQueue = [];
+        root.currentVideoIndex = -1;
+        root.unavailableVideoSources = [];
+
+        if (root.playbackMode === 1) {
+            root.playbackQueue = root.playlistVideos();
+            if (root.playbackQueue.length > 0) {
+                root.currentVideoIndex = 0;
+                root.setCurrentVideo(root.playbackQueue[0].source, trigger);
+            } else {
+                root.setCurrentVideo("", trigger);
+            }
+            return;
+        }
+
+        root.setCurrentVideo(root.simpleVideoUrl, trigger);
     }
 
     function syncPlayback(trigger) {
         const syncTrigger = trigger || "unspecified";
-        if (player.source.toString().length === 0) {
-            if (player.playbackState !== MediaPlayer.StoppedState) {
+        const active = root.activePlayer;
+        const standby = root.standbyPlayer;
+
+        if (active.source.toString().length === 0) {
+            if (active.playbackState !== MediaPlayer.StoppedState) {
                 root.debugLog("playback action=stop reason=no-source trigger=" + syncTrigger);
-                player.stop();
+                active.stop();
             }
             return;
         }
 
         if (root.shouldPauseForMaximizedWindow || root.shouldPauseForScreenPower) {
-            // pause() preserves the current video position.
-            if (player.playbackState === MediaPlayer.PlayingState) {
+            if (active.playbackState === MediaPlayer.PlayingState) {
                 const pauseReason = root.shouldPauseForScreenPower ? "screen-powered-off" : "maximized-window";
-                root.debugLog("playback action=pause reason=" + pauseReason + " trigger=" + syncTrigger + " positionMs=" + player.position);
-                player.pause();
+                root.debugLog("playback action=pause reason=" + pauseReason + " trigger=" + syncTrigger + " positionMs=" + active.position);
+                active.pause();
+            }
+            if (standby.playbackState === MediaPlayer.PlayingState) {
+                standby.pause();
             }
             return;
         }
 
-        // Only play when the media is ready.
-        if ((player.mediaStatus === MediaPlayer.LoadedMedia || player.mediaStatus === MediaPlayer.BufferedMedia || player.mediaStatus === MediaPlayer.BufferingMedia) && player.playbackState !== MediaPlayer.PlayingState) {
-            root.debugLog("playback action=play trigger=" + syncTrigger + " positionMs=" + player.position);
-            player.play();
+        if ((active.mediaStatus === MediaPlayer.LoadedMedia || active.mediaStatus === MediaPlayer.BufferedMedia || active.mediaStatus === MediaPlayer.BufferingMedia) && active.playbackState !== MediaPlayer.PlayingState) {
+            root.debugLog("playback action=play trigger=" + syncTrigger + " positionMs=" + active.position);
+            active.play();
+        }
+
+        if (root.transitionPending) {
+            if (root.preparedFrameReady) {
+                root.commitPreparedTransition(syncTrigger);
+            } else {
+                root.warmPreparedVideo();
+            }
+            return;
+        }
+
+        if (active.playbackState === MediaPlayer.PlayingState) {
+            root.maybePrepareNextVideo(active);
+        }
+    }
+
+    function maybePrepareNextVideo(mediaPlayer) {
+        if (root.playbackMode === 0 || root.playbackQueue.length <= 1 || root.currentVideoIndex < 0) {
+            return;
+        }
+
+        if (mediaPlayer.playbackState !== MediaPlayer.PlayingState || mediaPlayer.duration <= 0) {
+            return;
+        }
+
+        const remainingMs = mediaPlayer.duration - mediaPlayer.position;
+        if (remainingMs > root.preloadLeadTimeMs) {
+            return;
+        }
+
+        if (root.preparedVideoUrl.toString().length === 0) {
+            root.prepareNextVideo();
+            if (root.preparedVideoUrl.toString().length > 0) {
+                root.debugLog("preload action=trigger remainingMs=" + Math.max(0, remainingMs));
+            }
+        }
+
+        if (root.preparedVideoUrl.toString().length > 0 && !root.preparedFrameReady) {
+            root.warmPreparedVideo();
+        }
+    }
+
+    function handlePlayerPositionChanged(slot, mediaPlayer) {
+        if (root.resettingPlayers || slot !== root.activePlayerSlot) {
+            return;
+        }
+
+        root.maybePrepareNextVideo(mediaPlayer);
+    }
+
+    function handlePlayerMediaStatusChanged(slot, mediaPlayer) {
+        root.debugLog("media slot=" + slot + " status=" + root.mediaStatusName(mediaPlayer.mediaStatus) + " positionMs=" + mediaPlayer.position + " durationMs=" + mediaPlayer.duration);
+
+        if (root.resettingPlayers) {
+            return;
+        }
+
+        if (slot === root.activePlayerSlot) {
+            if (mediaPlayer.mediaStatus === MediaPlayer.EndOfMedia && root.playbackMode !== 0 && root.playbackQueue.length > 1) {
+                root.requestVideoTransition("playlist-end-of-media");
+                return;
+            }
+
+            if (mediaPlayer.mediaStatus === MediaPlayer.InvalidMedia && root.playbackMode !== 0 && root.playbackQueue.length > 1) {
+                root.markSourceUnavailable(mediaPlayer.source);
+                root.requestVideoTransition("skip-invalid-active");
+                return;
+            }
+
+            root.syncPlayback("media-status");
+            return;
+        }
+
+        if (mediaPlayer.source.toString() !== root.preparedVideoUrl.toString()) {
+            return;
+        }
+
+        if (mediaPlayer.mediaStatus === MediaPlayer.InvalidMedia) {
+            root.handlePreparedVideoFailure(mediaPlayer.source);
+            return;
+        }
+
+        root.warmPreparedVideo();
+    }
+
+    function handlePlayerPlaybackStateChanged(slot, mediaPlayer) {
+        root.debugLog("playback slot=" + slot + " state=" + root.playbackStateName(mediaPlayer.playbackState) + " positionMs=" + mediaPlayer.position);
+
+        if (root.resettingPlayers) {
+            return;
+        }
+
+        if (slot !== root.activePlayerSlot) {
+            return;
+        }
+
+        if (mediaPlayer.playbackState === MediaPlayer.PlayingState) {
+            root.maybePrepareNextVideo(mediaPlayer);
+            return;
+        }
+
+        if (mediaPlayer.playbackState === MediaPlayer.StoppedState
+                && mediaPlayer.mediaStatus === MediaPlayer.EndOfMedia
+                && root.playbackMode !== 0
+                && root.playbackQueue.length > 1) {
+            root.requestVideoTransition("playlist-stopped-at-end");
+            return;
+        }
+
+        root.syncPlayback("playback-state");
+    }
+
+    function handlePlayerError(slot, mediaPlayer, error, errorString) {
+        root.debugError(
+            "media slot=" + slot
+            + " error=" + root.mediaErrorName(error)
+            + " code=" + error
+            + " message=" + errorString
+            + " status=" + root.mediaStatusName(mediaPlayer.mediaStatus)
+            + " state=" + root.playbackStateName(mediaPlayer.playbackState)
+            + " positionMs=" + mediaPlayer.position
+            + " source=" + mediaPlayer.source.toString()
+        );
+
+        if (slot !== root.activePlayerSlot && mediaPlayer.source.toString() === root.preparedVideoUrl.toString()) {
+            root.handlePreparedVideoFailure(mediaPlayer.source);
         }
     }
 
     onAudioEnabledChanged: root.debugLog("configuration audioEnabled=" + root.audioEnabled)
+    onAudioVolumeChanged: root.debugLog("configuration audioVolume=" + root.audioVolume)
     onPauseOnMaximizedChanged: root.debugLog("configuration pauseOnMaximized=" + root.pauseOnMaximized)
     onConfiguredFillModeChanged: root.debugLog("configuration fillMode=" + root.configuredFillMode)
-    onVideoUrlChanged: root.debugLog("configuration videoUrl=" + root.videoUrl.toString())
     onWallpaperScreenGeometryChanged: root.debugLog("screen geometry=" + root.wallpaperScreenGeometry.x + "," + root.wallpaperScreenGeometry.y + "," + root.wallpaperScreenGeometry.width + "x" + root.wallpaperScreenGeometry.height)
+    onPlaybackModeChanged: {
+        if (root.componentReady) {
+            root.rebuildPlayback("playback-mode-changed");
+        }
+    }
+    onSimpleVideoUrlChanged: {
+        if (root.componentReady && root.playbackMode === 0) {
+            root.rebuildPlayback("simple-video-changed");
+        }
+    }
+    onConfiguredPlaylistChanged: {
+        if (root.componentReady && root.playbackMode === 1) {
+            root.rebuildPlayback("playlist-changed");
+        }
+    }
     onDebugEnabledChanged: {
         if (root.debugEnabled) {
             root.debugLog("debug logging enabled");
-
             if (root.componentReady) {
                 root.logRuntimeSnapshot("debug-enabled");
             }
@@ -227,6 +672,14 @@ WallpaperItem {
     onShouldPauseForScreenPowerChanged: {
         root.debugLog("pause condition=screen-power active=" + root.shouldPauseForScreenPower + " missedProbes=" + root.missedScreenProbeCount);
         root.syncPlayback("screen-power-condition");
+    }
+
+    Connections {
+        target: root.standbyVideoOutput !== null ? root.standbyVideoOutput.videoSink : null
+
+        function onVideoFrameChanged(frame) {
+            root.handleStandbyFrame();
+        }
     }
 
     TaskManager.VirtualDesktopInfo {
@@ -317,72 +770,102 @@ WallpaperItem {
         visible: root.isScreenLocker && root.screenRenderProbeToggle
     }
 
-    Rectangle {
+    Item {
         anchors.fill: parent
-        color: "black"
-    }
+        clip: true
 
-    VideoOutput {
-        id: wallpaperVideoOutput
-        anchors.fill: parent
+        Rectangle {
+            anchors.fill: parent
+            color: root.backgroundColor
+        }
 
-        fillMode: {
-            switch (root.configuredFillMode) {
-            case 0:
-                return VideoOutput.PreserveAspectFit;
-            case 2:
-                return VideoOutput.Stretch;
-            default:
-                return VideoOutput.PreserveAspectCrop;
+        VideoOutput {
+            id: wallpaperVideoOutputA
+
+            anchors.centerIn: parent
+            width: root.configuredFillMode === 3 ? Math.max(0, sourceRect.width) : parent.width
+            height: root.configuredFillMode === 3 ? Math.max(0, sourceRect.height) : parent.height
+            opacity: root.activePlayerSlot === 0 ? 1 : 0
+
+            fillMode: {
+                switch (root.configuredFillMode) {
+                case 0:
+                    return VideoOutput.PreserveAspectFit;
+                case 2:
+                    return VideoOutput.Stretch;
+                case 3:
+                    return VideoOutput.PreserveAspectFit;
+                default:
+                    return VideoOutput.PreserveAspectCrop;
+                }
+            }
+        }
+
+        VideoOutput {
+            id: wallpaperVideoOutputB
+
+            anchors.centerIn: parent
+            width: root.configuredFillMode === 3 ? Math.max(0, sourceRect.width) : parent.width
+            height: root.configuredFillMode === 3 ? Math.max(0, sourceRect.height) : parent.height
+            opacity: root.activePlayerSlot === 1 ? 1 : 0
+
+            fillMode: {
+                switch (root.configuredFillMode) {
+                case 0:
+                    return VideoOutput.PreserveAspectFit;
+                case 2:
+                    return VideoOutput.Stretch;
+                case 3:
+                    return VideoOutput.PreserveAspectFit;
+                default:
+                    return VideoOutput.PreserveAspectCrop;
+                }
             }
         }
     }
 
     AudioOutput {
-        id: wallpaperAudioOutput
-        muted: !root.audioEnabled
+        id: wallpaperAudioOutputA
+        muted: !root.audioEnabled || root.activePlayerSlot !== 0
+        volume: root.audioVolume
+    }
+
+    AudioOutput {
+        id: wallpaperAudioOutputB
+        muted: !root.audioEnabled || root.activePlayerSlot !== 1
+        volume: root.audioVolume
     }
 
     MediaPlayer {
-        id: player
+        id: playerA
 
-        source: root.videoUrl
-        videoOutput: wallpaperVideoOutput
-        audioOutput: root.audioEnabled ? wallpaperAudioOutput : null
-
-        // Keep the audio track fully disabled unless the user explicitly enables it.
+        videoOutput: wallpaperVideoOutputA
+        audioOutput: root.audioEnabled ? wallpaperAudioOutputA : null
         activeAudioTrack: root.audioEnabled ? 0 : -1
         activeSubtitleTrack: -1
+        loops: root.playbackMode === 0 || root.playbackQueue.length <= 1 ? MediaPlayer.Infinite : MediaPlayer.Once
 
-        loops: MediaPlayer.Infinite
+        onSourceChanged: root.debugLog("media slot=0 source=" + source.toString())
+        onMediaStatusChanged: root.handlePlayerMediaStatusChanged(0, playerA)
+        onPlaybackStateChanged: root.handlePlayerPlaybackStateChanged(0, playerA)
+        onPositionChanged: root.handlePlayerPositionChanged(0, playerA)
+        onErrorOccurred: (error, errorString) => root.handlePlayerError(0, playerA, error, errorString)
+    }
 
-        onSourceChanged: {
-            root.debugLog("media source=" + source.toString());
+    MediaPlayer {
+        id: playerB
 
-            if (source.toString().length === 0) {
-                root.debugLog("playback action=stop reason=source-cleared");
-                stop();
-            }
-        }
+        videoOutput: wallpaperVideoOutputB
+        audioOutput: root.audioEnabled ? wallpaperAudioOutputB : null
+        activeAudioTrack: root.audioEnabled ? 0 : -1
+        activeSubtitleTrack: -1
+        loops: root.playbackMode === 0 || root.playbackQueue.length <= 1 ? MediaPlayer.Infinite : MediaPlayer.Once
 
-        onMediaStatusChanged: {
-            root.debugLog("media status=" + root.mediaStatusName(mediaStatus) + " positionMs=" + position + " durationMs=" + duration);
-            root.syncPlayback("media-status");
-        }
-
-        onPlaybackStateChanged: root.debugLog("playback state=" + root.playbackStateName(playbackState) + " positionMs=" + position)
-
-        onErrorOccurred: (error, errorString) => {
-            root.debugError(
-                "media error=" + root.mediaErrorName(error)
-                + " code=" + error
-                + " message=" + errorString
-                + " status=" + root.mediaStatusName(mediaStatus)
-                + " state=" + root.playbackStateName(playbackState)
-                + " positionMs=" + position
-                + " source=" + source.toString()
-            );
-        }
+        onSourceChanged: root.debugLog("media slot=1 source=" + source.toString())
+        onMediaStatusChanged: root.handlePlayerMediaStatusChanged(1, playerB)
+        onPlaybackStateChanged: root.handlePlayerPlaybackStateChanged(1, playerB)
+        onPositionChanged: root.handlePlayerPositionChanged(1, playerB)
+        onErrorOccurred: (error, errorString) => root.handlePlayerError(1, playerB, error, errorString)
     }
 
     Text {
@@ -391,13 +874,14 @@ WallpaperItem {
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
         color: "white"
-        text: player.errorString
-        visible: player.error !== MediaPlayer.NoError && text.length > 0
+        text: root.activePlayer.errorString
+        visible: root.activePlayer.error !== MediaPlayer.NoError && text.length > 0
     }
 
     Component.onCompleted: {
         root.componentReady = true;
         root.debugLog("component completed");
+        root.rebuildPlayback("component-completed");
         root.logRuntimeSnapshot("component-completed");
         root.syncPlayback("component-completed");
     }

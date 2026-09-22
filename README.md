@@ -2,7 +2,7 @@
 
 [Español](README.es.md)
 
-**KineWall** is a QML wallpaper plugin for KDE Plasma 6 that plays a local video in a continuous loop. Audio is disabled by default and can be enabled from the KineWall configuration panel.
+**KineWall** is a QML wallpaper plugin for KDE Plasma 6 that plays local videos as the wallpaper. It supports a single looping video or an explicit playlist. Audio is disabled by default and can be enabled from the KineWall configuration panel.
 
 KineWall can be used both as the **Plasma Desktop wallpaper** and as the **KDE Plasma lock screen (KScreenLocker) wallpaper**.
 
@@ -90,9 +90,9 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 1. Right-click the desktop.
 2. Select **Configure Desktop and Wallpaper**.
 3. Under **Wallpaper Type**, select **KineWall**.
-4. Click **Browse…** and select a video file.
-5. Choose the desired positioning mode.
-6. Choose whether audio should be **Disabled** or **Enabled**.
+4. Choose a playback mode: **Simple** or **Playlist**.
+5. Configure the selected mode and choose the desired positioning mode.
+6. Choose whether audio should be **Disabled** or **Enabled** and, when enabled, adjust its volume.
 7. Optionally enable or disable **Pause when a window is maximized**.
 8. Apply the changes.
 
@@ -102,14 +102,32 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 2. Go to **Security & Privacy → Screen Locking**.
 3. Open **Configure Appearance…**.
 4. Under **Wallpaper Type**, select **KineWall**.
-5. Click **Browse…** and select a video file.
-6. Choose the desired positioning mode and audio mode.
+5. Choose **Simple** or **Playlist** and configure its videos.
+6. Choose the desired positioning mode and audio mode; when audio is enabled, adjust its volume if needed.
 7. Apply the changes.
 8. Press **Meta + L** to test the lock screen.
 
 The desktop and lock screen keep their own wallpaper configuration, so they can use the same video or different videos and configure audio independently.
 
 The **Pause when a window is maximized** option only affects the desktop. KScreenLocker ignores maximized windows, but it pauses the video while the display is powered off and resumes from the same position when the display turns back on.
+
+## Playback modes
+
+KineWall provides two playback modes:
+
+- **Simple** plays one selected video in a continuous loop.
+- **Playlist** plays explicitly selected files in the order shown. Drag a video's reorder handle to place it anywhere in the list. Each video plays completely before KineWall advances to the next item, and the list loops after the last video.
+
+## Positioning
+
+The available positioning modes are:
+
+- **Scaled and Cropped**: scales proportionally to fill the screen and crops overflow.
+- **Scaled**: stretches the video to the wallpaper area.
+- **Scaled, keep proportions**: fits the complete video while preserving its aspect ratio.
+- **Centered**: displays the video at its native source size and centers it.
+
+**Scaled, keep proportions** and **Centered** expose a **Solid color** setting for the uncovered background area.
 
 ## Reload Plasma if necessary
 
@@ -126,11 +144,9 @@ If your session does not provide this systemd user unit, log out and log back in
 Audio is **disabled by default** and can be changed from the KineWall configuration panel using the **Audio** selector:
 
 - **Disabled**: KineWall does not connect an `AudioOutput` to the player and sets `activeAudioTrack: -1`, keeping the audio track disabled.
-- **Enabled**: KineWall connects an `AudioOutput` and activates the first audio track with `activeAudioTrack: 0`.
+- **Enabled**: KineWall connects an `AudioOutput` and activates the first audio track with `activeAudioTrack: 0`. A **Volume** slider appears below the audio selector and can be adjusted from 0% to 100%.
 
-The audio setting is stored independently for each wallpaper configuration, including the desktop and KScreenLocker.
-
-KineWall currently provides an enable/disable audio selector; it does not provide a separate volume control.
+The audio enabled state and volume are stored independently for each wallpaper configuration, including the desktop and KScreenLocker. The volume defaults to 100%, preserving the previous full-volume behavior when audio is enabled.
 
 ## Pause when a window is maximized
 
