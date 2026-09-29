@@ -19,6 +19,7 @@ ColumnLayout {
     property bool cfg_AudioEnabled: false
     property int cfg_AudioVolume: 100
     property bool cfg_PauseOnMaximized: true
+    property int cfg_PauseCoverageThreshold: 85
     property bool cfg_DebugEnabled: false
 
     property bool componentReady: false
@@ -190,12 +191,33 @@ ColumnLayout {
         }
 
         Controls.ComboBox {
-            Kirigami.FormData.label: "Pause on maximized windows:"
+            Kirigami.FormData.label: "Performance pause:"
             Layout.fillWidth: true
 
             model: ["Disabled", "Enabled"]
             currentIndex: root.cfg_PauseOnMaximized ? 1 : 0
             onActivated: root.cfg_PauseOnMaximized = currentIndex === 1
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: "Coverage threshold:"
+            Layout.fillWidth: true
+            visible: root.cfg_PauseOnMaximized
+
+            Controls.Slider {
+                Layout.fillWidth: true
+                from: 1
+                to: 100
+                stepSize: 1
+                value: root.cfg_PauseCoverageThreshold
+                onMoved: root.cfg_PauseCoverageThreshold = Math.round(value)
+            }
+
+            Controls.Label {
+                text: root.cfg_PauseCoverageThreshold + "%"
+                horizontalAlignment: Text.AlignRight
+                Layout.minimumWidth: Kirigami.Units.gridUnit * 2.5
+            }
         }
 
         Controls.CheckBox {

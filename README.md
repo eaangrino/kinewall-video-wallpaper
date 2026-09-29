@@ -6,7 +6,7 @@
 
 KineWall can be used both as the **Plasma Desktop wallpaper** and as the **KDE Plasma lock screen (KScreenLocker) wallpaper**.
 
-It can also pause video playback automatically while a maximized window covers the desktop, avoiding unnecessary playback when the wallpaper is not visible. This performance pause applies only to the desktop.
+It can also pause video playback automatically when a maximized window is present or when visible, non-minimized windows cover a configurable percentage of the desktop. The coverage threshold defaults to 85%, avoiding unnecessary playback when most of the wallpaper is hidden. This performance pause applies only to the desktop.
 
 When KineWall is used by KScreenLocker, playback is also paused while the display is powered off and resumes from the same position when the display turns back on. This display-power pause applies only to KScreenLocker and does not change desktop playback behavior.
 
@@ -93,7 +93,7 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 4. Choose a playback mode: **Simple** or **Playlist**.
 5. Configure the selected mode and choose the desired positioning mode.
 6. Choose whether audio should be **Disabled** or **Enabled** and, when enabled, adjust its volume.
-7. Optionally enable or disable **Pause when a window is maximized**.
+7. Optionally enable or disable **Performance pause** and adjust the desktop coverage threshold (85% by default).
 8. Apply the changes.
 
 ### Lock screen (KScreenLocker)
@@ -109,7 +109,7 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 
 The desktop and lock screen keep their own wallpaper configuration, so they can use the same video or different videos and configure audio independently.
 
-The **Pause when a window is maximized** option only affects the desktop. KScreenLocker ignores maximized windows, but it pauses the video while the display is powered off and resumes from the same position when the display turns back on.
+The **Performance pause** option only affects the desktop. KScreenLocker ignores both maximized windows and desktop coverage, but it pauses the video while the display is powered off and resumes from the same position when the display turns back on.
 
 ## Playback modes
 
@@ -148,25 +148,30 @@ Audio is **disabled by default** and can be changed from the KineWall configurat
 
 The audio enabled state and volume are stored independently for each wallpaper configuration, including the desktop and KScreenLocker. The volume defaults to 100%, preserving the previous full-volume behavior when audio is enabled.
 
-## Pause when a window is maximized
+## Performance pause
 
-KineWall can optionally pause playback when a maximized, non-minimized window is present on the same monitor while running as the desktop wallpaper.
+KineWall can optionally pause desktop playback when either of these conditions is met:
+
+- a maximized, non-minimized window is present on the same monitor; or
+- the combined area of visible, non-minimized windows reaches the configured coverage threshold, which defaults to 85%.
+
+Coverage is calculated from the geometric union of the windows inside the current monitor. Areas where windows overlap are counted only once, and each window is clipped to the monitor bounds before the percentage is calculated.
 
 Window detection uses Plasma's `org.kde.taskmanager` and filters by:
 
 - the current virtual desktop;
 - the current activity;
 - the monitor running the current KineWall instance;
-- non-minimized windows;
-- maximized windows.
+- visible windows;
+- non-minimized windows.
 
-When such a window is detected, KineWall calls `MediaPlayer.pause()`, preserving the playback position.
+Window geometry, open, close, minimize and restore changes update the percentage using event-driven model updates. Repeated changes in the same event-loop cycle are coalesced before coverage is recalculated.
 
-When no matching maximized window remains, KineWall calls `MediaPlayer.play()` and playback resumes from the same position.
+When a pause condition is met, KineWall calls `MediaPlayer.pause()`, preserving the playback position. When neither condition remains, KineWall calls `MediaPlayer.play()` and playback resumes from the same position.
 
-This behavior is disabled inside KScreenLocker so maximized windows do not pause the lock screen video.
+Maximized windows continue to pause regardless of the coverage threshold, preserving the existing behavior. The threshold controls the additional pause caused by one or more non-maximized windows.
 
-The option is enabled by default and can be disabled from the KineWall configuration panel.
+This behavior is disabled inside KScreenLocker. The option is enabled by default, the default threshold is 85%, and both can be configured from the KineWall configuration panel.
 
 ## Pause while the lock-screen display is powered off
 

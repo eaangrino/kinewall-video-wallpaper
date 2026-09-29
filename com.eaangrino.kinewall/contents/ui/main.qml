@@ -2,6 +2,7 @@
 
 import QtQuick
 import QtMultimedia
+import QtQml.Models
 import org.kde.plasma.plasmoid
 import org.kde.taskmanager as TaskManager
 
@@ -35,6 +36,11 @@ WallpaperItem {
         return value === undefined || value === null ? true : Boolean(value);
     }
 
+    readonly property int pauseCoverageThreshold: {
+        const value = Number(root.configuration.PauseCoverageThreshold);
+        return Number.isFinite(value) ? Math.max(1, Math.min(100, Math.round(value))) : 85;
+    }
+
     readonly property bool debugEnabled: {
         const value = root.configuration.DebugEnabled;
         return value === undefined || value === null ? false : Boolean(value);
@@ -55,15 +61,18 @@ WallpaperItem {
         return value === undefined || value === null ? "#000000" : value;
     }
 
-    // The model is already filtered to contain only windows:
+    // Window tasks are filtered to the current desktop/activity/monitor and
+    // exclude hidden or minimized windows. Their geometry is then combined to
+    // determine how much of this wallpaper is actually covered.
     // - on the current virtual desktop
     // - in the current activity
     // - on the same monitor
-    // - not minimized
-    // - maximized
     readonly property bool isScreenLocker: Qt.application.name === "kscreenlocker_greet"
-    readonly property bool hasMaximizedWindow: !root.isScreenLocker && maximizedTasks.count > 0
-    readonly property bool shouldPauseForMaximizedWindow: root.pauseOnMaximized && root.hasMaximizedWindow
+    property int maximizedWindowCount: 0
+    property real desktopCoveragePercent: 0
+    readonly property bool hasMaximizedWindow: !root.isScreenLocker && root.maximizedWindowCount > 0
+    readonly property bool hasCoveredDesktop: !root.isScreenLocker && root.desktopCoveragePercent >= root.pauseCoverageThreshold
+    readonly property bool shouldPauseForMaximizedWindow: root.pauseOnMaximized && (root.hasMaximizedWindow || root.hasCoveredDesktop)
 
     // KScreenLocker-only display power detection. A probe requests a tiny visual
     // update once per second. If two consecutive probes are not presented by the
@@ -133,6 +142,108 @@ WallpaperItem {
         if (root.debugEnabled) {
             console.error("[KineWall] " + message);
         }
+    }
+
+    function updateWindowCoverage() {
+        if (root.isScreenLocker || !root.pauseOnMaximized) {
+            root.maximizedWindowCount = 0;
+            root.desktopCoveragePercent = 0;
+            return;
+        }
+
+        const screen = root.wallpaperScreenGeometry;
+        const screenArea = screen.width * screen.height;
+        if (screenArea <= 0) {
+            root.maximizedWindowCount = 0;
+            root.desktopCoveragePercent = 0;
+            return;
+        }
+
+        const windows = [];
+        let maximizedCount = 0;
+
+        for (let i = 0; i < windowTaskInstances.count; ++i) {
+            const task = windowTaskInstances.objectAt(i);
+            if (task === null || !task.isWindow) {
+                continue;
+            }
+
+            if (task.isMaximized) {
+                maximizedCount += 1;
+            }
+
+            const geometry = task.windowGeometry;
+            const left = Math.max(screen.x, geometry.x);
+            const top = Math.max(screen.y, geometry.y);
+            const right = Math.min(screen.x + screen.width, geometry.x + geometry.width);
+            const bottom = Math.min(screen.y + screen.height, geometry.y + geometry.height);
+
+            if (right <= left || bottom <= top) {
+                continue;
+            }
+
+            windows.push({ left: left, top: top, right: right, bottom: bottom });
+        }
+
+        root.maximizedWindowCount = maximizedCount;
+
+        if (windows.length === 0) {
+            root.desktopCoveragePercent = 0;
+            return;
+        }
+
+        const xEdges = [];
+        for (let i = 0; i < windows.length; ++i) {
+            xEdges.push(windows[i].left);
+            xEdges.push(windows[i].right);
+        }
+        xEdges.sort((a, b) => a - b);
+
+        let coveredArea = 0;
+        for (let xIndex = 0; xIndex < xEdges.length - 1; ++xIndex) {
+            const left = xEdges[xIndex];
+            const right = xEdges[xIndex + 1];
+            if (right <= left) {
+                continue;
+            }
+
+            const intervals = [];
+            for (let windowIndex = 0; windowIndex < windows.length; ++windowIndex) {
+                const windowRect = windows[windowIndex];
+                if (windowRect.left < right && windowRect.right > left) {
+                    intervals.push({ top: windowRect.top, bottom: windowRect.bottom });
+                }
+            }
+
+            if (intervals.length === 0) {
+                continue;
+            }
+
+            intervals.sort((a, b) => a.top - b.top);
+            let coveredHeight = 0;
+            let intervalTop = intervals[0].top;
+            let intervalBottom = intervals[0].bottom;
+
+            for (let intervalIndex = 1; intervalIndex < intervals.length; ++intervalIndex) {
+                const interval = intervals[intervalIndex];
+                if (interval.top <= intervalBottom) {
+                    intervalBottom = Math.max(intervalBottom, interval.bottom);
+                } else {
+                    coveredHeight += intervalBottom - intervalTop;
+                    intervalTop = interval.top;
+                    intervalBottom = interval.bottom;
+                }
+            }
+
+            coveredHeight += intervalBottom - intervalTop;
+            coveredArea += (right - left) * coveredHeight;
+        }
+
+        root.desktopCoveragePercent = Math.min(100, coveredArea * 100 / screenArea);
+    }
+
+    function scheduleWindowCoverageUpdate() {
+        Qt.callLater(root.updateWindowCoverage);
     }
 
     function playbackStateName(state) {
@@ -207,7 +318,9 @@ WallpaperItem {
             + " audioVolume=" + root.audioVolume
             + " activeAudioTrack=" + active.activeAudioTrack
             + " pauseOnMaximized=" + root.pauseOnMaximized
+            + " pauseCoverageThreshold=" + root.pauseCoverageThreshold
             + " hasMaximizedWindow=" + root.hasMaximizedWindow
+            + " desktopCoveragePercent=" + root.desktopCoveragePercent.toFixed(1)
             + " screenPoweredOff=" + root.screenPoweredOff
             + " preparedSource=" + root.preparedVideoUrl.toString()
             + " preparedFrameReady=" + root.preparedFrameReady
@@ -495,7 +608,9 @@ WallpaperItem {
 
         if (root.shouldPauseForMaximizedWindow || root.shouldPauseForScreenPower) {
             if (active.playbackState === MediaPlayer.PlayingState) {
-                const pauseReason = root.shouldPauseForScreenPower ? "screen-powered-off" : "maximized-window";
+                const pauseReason = root.shouldPauseForScreenPower
+                    ? "screen-powered-off"
+                    : root.hasMaximizedWindow ? "maximized-window" : "window-coverage";
                 root.debugLog("playback action=pause reason=" + pauseReason + " trigger=" + syncTrigger + " positionMs=" + active.position);
                 active.pause();
             }
@@ -639,9 +754,16 @@ WallpaperItem {
 
     onAudioEnabledChanged: root.debugLog("configuration audioEnabled=" + root.audioEnabled)
     onAudioVolumeChanged: root.debugLog("configuration audioVolume=" + root.audioVolume)
-    onPauseOnMaximizedChanged: root.debugLog("configuration pauseOnMaximized=" + root.pauseOnMaximized)
+    onPauseOnMaximizedChanged: {
+        root.debugLog("configuration pauseOnMaximized=" + root.pauseOnMaximized);
+        root.scheduleWindowCoverageUpdate();
+    }
+    onPauseCoverageThresholdChanged: root.debugLog("configuration pauseCoverageThreshold=" + root.pauseCoverageThreshold)
     onConfiguredFillModeChanged: root.debugLog("configuration fillMode=" + root.configuredFillMode)
-    onWallpaperScreenGeometryChanged: root.debugLog("screen geometry=" + root.wallpaperScreenGeometry.x + "," + root.wallpaperScreenGeometry.y + "," + root.wallpaperScreenGeometry.width + "x" + root.wallpaperScreenGeometry.height)
+    onWallpaperScreenGeometryChanged: {
+        root.debugLog("screen geometry=" + root.wallpaperScreenGeometry.x + "," + root.wallpaperScreenGeometry.y + "," + root.wallpaperScreenGeometry.width + "x" + root.wallpaperScreenGeometry.height);
+        root.scheduleWindowCoverageUpdate();
+    }
     onPlaybackModeChanged: {
         if (root.componentReady) {
             root.rebuildPlayback("playback-mode-changed");
@@ -666,7 +788,12 @@ WallpaperItem {
         }
     }
     onShouldPauseForMaximizedWindowChanged: {
-        root.debugLog("pause condition=maximized-window active=" + root.shouldPauseForMaximizedWindow + " matchingWindows=" + maximizedTasks.count);
+        root.debugLog(
+            "pause condition=window-occlusion active=" + root.shouldPauseForMaximizedWindow
+            + " maximizedWindows=" + root.maximizedWindowCount
+            + " coveragePercent=" + root.desktopCoveragePercent.toFixed(1)
+            + " thresholdPercent=" + root.pauseCoverageThreshold
+        );
         root.syncPlayback("maximized-window-condition");
     }
     onShouldPauseForScreenPowerChanged: {
@@ -740,7 +867,7 @@ WallpaperItem {
     }
 
     TaskManager.TasksModel {
-        id: maximizedTasks
+        id: windowTasks
 
         groupMode: TaskManager.TasksModel.GroupDisabled
 
@@ -754,11 +881,31 @@ WallpaperItem {
         filterByScreen: root.wallpaperScreenGeometry.width > 0
         screenGeometry: root.wallpaperScreenGeometry
 
-        // "filter" means excluding those states:
-        // excludes minimized and non-maximized windows.
+        // "filter" means excluding those states.
         filterMinimized: true
-        filterNotMaximized: true
         filterHidden: true
+    }
+
+    Instantiator {
+        id: windowTaskInstances
+
+        active: !root.isScreenLocker && root.pauseOnMaximized
+        model: windowTasks
+
+        onObjectAdded: root.scheduleWindowCoverageUpdate()
+        onObjectRemoved: root.scheduleWindowCoverageUpdate()
+
+        delegate: QtObject {
+            required property var model
+
+            readonly property bool isWindow: model.IsWindow
+            readonly property bool isMaximized: model.IsMaximized
+            readonly property rect windowGeometry: model.Geometry
+
+            onIsWindowChanged: root.scheduleWindowCoverageUpdate()
+            onIsMaximizedChanged: root.scheduleWindowCoverageUpdate()
+            onWindowGeometryChanged: root.scheduleWindowCoverageUpdate()
+        }
     }
 
     // Toggling this occluded pixel dirties the Qt Quick scene without changing

@@ -6,7 +6,7 @@
 
 KineWall puede utilizarse tanto como **fondo de Plasma Desktop** como en la **pantalla de bloqueo de KDE Plasma (KScreenLocker)**.
 
-También puede pausar automáticamente la reproducción cuando una ventana maximizada cubre el escritorio, evitando reproducir el video innecesariamente cuando el fondo no es visible. Esta pausa de rendimiento solo se aplica al escritorio.
+También puede pausar automáticamente la reproducción cuando hay una ventana maximizada o cuando las ventanas visibles y no minimizadas cubren un porcentaje configurable del escritorio. El umbral de cobertura es 85% por defecto, evitando reproducir el video innecesariamente cuando la mayor parte del fondo está oculta. Esta pausa de rendimiento solo se aplica al escritorio.
 
 Cuando KineWall se utiliza en KScreenLocker, la reproducción también se pausa mientras la pantalla está apagada y continúa desde la misma posición cuando la pantalla vuelve a encenderse. Esta pausa por estado de la pantalla solo se aplica a KScreenLocker y no cambia el comportamiento del fondo del escritorio.
 
@@ -93,7 +93,7 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 4. Elige un modo de reproducción: **Simple** o **Playlist**.
 5. Configura el modo seleccionado y escoge el modo de posicionamiento.
 6. Elige si el audio debe estar **Deshabilitado** o **Habilitado** y, cuando esté habilitado, ajusta su volumen.
-7. Activa o desactiva, si quieres, **Pausar cuando haya una ventana maximizada**.
+7. Activa o desactiva, si quieres, **Performance pause** y ajusta el umbral de cobertura del escritorio (85% por defecto).
 8. Aplica los cambios.
 
 ### Pantalla de bloqueo (KScreenLocker)
@@ -109,7 +109,7 @@ test -f ~/.local/share/plasma/wallpapers/com.eaangrino.kinewall/metadata.json &&
 
 El escritorio y la pantalla de bloqueo mantienen su propia configuración de fondo, por lo que pueden utilizar el mismo video o videos diferentes y configurar el audio de forma independiente.
 
-La opción **Pausar cuando haya una ventana maximizada** solo afecta al escritorio. KScreenLocker ignora las ventanas maximizadas, pero pausa el video mientras la pantalla está apagada y continúa desde la misma posición cuando vuelve a encenderse.
+La opción **Performance pause** solo afecta al escritorio. KScreenLocker ignora tanto las ventanas maximizadas como el porcentaje de cobertura, pero pausa el video mientras la pantalla está apagada y continúa desde la misma posición cuando vuelve a encenderse.
 
 ## Modos de reproducción
 
@@ -148,25 +148,30 @@ El audio está **deshabilitado por defecto** y puede cambiarse desde el panel de
 
 El estado del audio y el volumen se guardan de forma independiente para cada configuración de fondo, incluyendo el escritorio y KScreenLocker. El volumen predeterminado es 100%, conservando el comportamiento anterior de volumen completo cuando se habilita el audio.
 
-## Pausa cuando una ventana está maximizada
+## Pausa de rendimiento
 
-KineWall puede pausar opcionalmente la reproducción cuando existe una ventana maximizada y no minimizada en el mismo monitor mientras se utiliza como fondo del escritorio.
+KineWall puede pausar opcionalmente la reproducción en el escritorio cuando se cumple cualquiera de estas condiciones:
+
+- existe una ventana maximizada y no minimizada en el mismo monitor; o
+- el área combinada de las ventanas visibles y no minimizadas alcanza el umbral de cobertura configurado, que es 85% por defecto.
+
+El cálculo usa la unión geométrica de las ventanas dentro del monitor actual. Las zonas donde varias ventanas se solapan se cuentan una sola vez y cada ventana se recorta a los límites del monitor antes de calcular el porcentaje.
 
 La detección utiliza `org.kde.taskmanager` de Plasma y filtra por:
 
 - el escritorio virtual actual;
 - la actividad actual;
 - el monitor donde se ejecuta la instancia actual de KineWall;
-- ventanas no minimizadas;
-- ventanas maximizadas.
+- ventanas visibles;
+- ventanas no minimizadas.
 
-Cuando se detecta una ventana de ese tipo, KineWall llama a `MediaPlayer.pause()`, conservando la posición de reproducción.
+Los cambios de geometría, apertura, cierre, minimización y restauración de ventanas actualizan el porcentaje de forma dirigida por eventos. Las actualizaciones repetidas del mismo ciclo del event loop se agrupan antes de recalcular la cobertura.
 
-Cuando deja de existir una ventana maximizada que coincida con esos criterios, KineWall llama a `MediaPlayer.play()` y el video continúa desde la misma posición.
+Cuando se cumple una condición de pausa, KineWall llama a `MediaPlayer.pause()`, conservando la posición de reproducción. Cuando deja de cumplirse, llama a `MediaPlayer.play()` y el video continúa desde la misma posición.
 
-Este comportamiento está deshabilitado dentro de KScreenLocker para que las ventanas maximizadas no pausen el video de la pantalla de bloqueo.
+Las ventanas maximizadas siguen pausando independientemente del umbral de cobertura, conservando el comportamiento existente. El umbral controla la pausa adicional causada por una o varias ventanas no maximizadas.
 
-La opción está activada por defecto y puede desactivarse desde la configuración de KineWall.
+Este comportamiento está deshabilitado dentro de KScreenLocker. La opción está activada por defecto, el umbral predeterminado es 85% y ambos pueden configurarse desde el panel de KineWall.
 
 ## Pausa mientras la pantalla de bloqueo está apagada
 
