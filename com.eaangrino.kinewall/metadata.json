@@ -11,11 +11,11 @@
     "Name": "KineWall",
     "Icon": "video-x-generic",
     "Category": "",
-    "Description": "KineWall plays local videos as a desktop background in KDE Plasma—with optional audio, looping playback, and an optional pause when a window is maximized.",
+    "Description": "KineWall plays local videos as a desktop background in KDE Plasma—with optional audio, looping playback, and an optional performance pause when windows cover the desktop.",
     "Website": "https://github.com/eaangrino/kinewall-video-wallpaper",
     "BugReportUrl": "https://github.com/eaangrino/kinewall-video-wallpaper/issues",
     "License": "MIT",
-    "Version": "0.2.0"
+    "Version": "0.3.0"
   },
   "X-Plasma-ContainmentCategories": ["desktop"],
   "Keywords": ["wallpaper", "video", "desktop"],

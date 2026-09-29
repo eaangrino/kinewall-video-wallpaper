@@ -46,6 +46,11 @@
             <default>true</default>
         </entry>
 
+        <entry name="PauseCoverageThreshold" type="Int">
+            <label>Desktop coverage percentage that pauses playback</label>
+            <default>85</default>
+        </entry>
+
         <entry name="DebugEnabled" type="Bool">
             <label>Enable debug logging</label>
             <default>false</default>
